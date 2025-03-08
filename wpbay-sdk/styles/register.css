@@ -1,0 +1,21 @@
+.wpbay-sdk-register-form {
+    background: #f8f8f8;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-top: 15px;
+}
+
+.wpbay-sdk-register-form .form-table th {
+    width: 120px;
+    vertical-align: top;
+}
+
+.wpbay-sdk-register-form input[type="text"] {
+    width: 100%;
+    max-width: 100%!important;
+}
+
+.wpbay-sdk-register-form .submit {
+    margin-top: 15px;
+}

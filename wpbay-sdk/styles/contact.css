@@ -1,0 +1,15 @@
+.wpbay-sdk-contact-form-wrapper {
+    background: #f9f9f9;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    margin-top: 15px;
+}
+.wpbay-sdk-contact-form-wrapper .form-table th {
+    padding: 10px 0;
+}
+.wpbay-contact-input
+{
+    width:100%;
+    max-width: 100%!important;
+}

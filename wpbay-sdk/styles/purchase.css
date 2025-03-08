@@ -1,0 +1,83 @@
+.wpbay-upgrade-wrapper {
+    background: #ffffff;
+    border: 1px solid #ddd;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 600px;
+}
+
+.wpbay-upgrade-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.wpbay-upgrade-card {
+    display: flex;
+    align-items: center;
+    background: #f8f8f8;
+    border: 1px solid #ddd;
+    padding: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.wpbay-upgrade-card:hover {
+    border-color: #007cba;
+    background: #eef6fd;
+}
+
+.wpbay-upgrade-card.selected {
+    border-color: #007cba;
+    background: #eef6fd;
+}
+.wpbay-upgrade-card input[type="radio"] {
+    display: none;
+}
+
+.wpbay-upgrade-card label {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.wpbay-upgrade-icon {
+    width: 40px;
+    height: 40px;
+    background: #007cba;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin-right: 12px;
+}
+
+.wpbay-upgrade-icon .dashicons {
+    font-size: 20px;
+    line-height: 40px;
+}
+
+.wpbay-upgrade-details {
+    flex-grow: 1;
+}
+
+.wpbay-upgrade-price {
+    font-size: 14px;
+    color: #007cba;
+    font-weight: bold;
+}
+
+.wpbay-upgrade-button {
+    width: 100%;
+    margin-top: 15px!important;
+    font-size: 16px;
+    padding: 10px 20px;
+    border-radius: 6px;
+}
+.more-descriptions
+{
+    margin-bottom: 15px!important;
+}
