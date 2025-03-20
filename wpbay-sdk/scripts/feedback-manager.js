@@ -109,6 +109,7 @@ jQuery(document).ready(function($) {
                                 reason: selectedReason,
                                 details: details,
                                 product_slug: data.product_slug,
+                                product_id: data.product_id,
                                 nonce: data.nonce
                             };
 

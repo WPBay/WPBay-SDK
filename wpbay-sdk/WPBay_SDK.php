@@ -23,6 +23,7 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
         private $no_activation_required = false;
         
         private $product_slug = __FILE__;
+        private $product_name = '';
         private $product_basename = __FILE__;
         private $this_sdk_version = '0.0.0';
 
@@ -73,6 +74,40 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
                 $this->product_type = strpos( wpbay_sdk_normalize_path(__FILE__), wpbay_sdk_normalize_path(get_theme_root()) ) !== false ? 'theme' :
                 ( strpos( wpbay_sdk_normalize_path(__FILE__), wpbay_sdk_normalize_path(WP_PLUGIN_DIR) ) !== false ? 'plugin' : 'unknown' );
             }
+            if(isset($args['product_file']))
+            {
+                $this->product_file = wpbay_sdk_normalize_path($args['product_file']);
+            }
+            else
+            {
+                $this->product_file = wpbay_sdk_normalize_path($this->product_file);
+            }
+            if($call_context == 'theme')
+            {
+                $this->product_basename = $this->get_theme_basename();
+            }
+            elseif($call_context == 'plugin')
+            {
+                $this->product_basename = plugin_basename($this->product_file);
+            }
+            else
+            {
+                $this->product_basename = plugin_basename($this->product_file);
+            }
+            if($this->product_type == 'theme')
+            {
+                $theme = wp_get_theme($this->product_slug);
+                $this->product_name = $theme->exists() ? $theme->get('Name') : $this->product_slug;
+            }
+            elseif($this->product_type == 'plugin')
+            {
+                $plugin_data = get_plugin_data($this->product_file, false, false);
+                $this->product_name = !empty($plugin_data['Name']) ? $plugin_data['Name'] : $this->product_slug;
+            }
+            else
+            {
+                $this->product_name = $this->product_slug;
+            }
             if(isset($args['is_free']) && is_bool($args['is_free']))
             {
                 $this->is_free = $args['is_free'];
@@ -97,15 +132,6 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             {
                 $this->wpbay_product_id = $args['wpbay_product_id'];
             }
-            if(isset($args['product_file']))
-            {
-                $this->product_file = wpbay_sdk_normalize_path($args['product_file']);
-            }
-            else
-            {
-                $this->product_file = wpbay_sdk_normalize_path($this->product_file);
-            }
-            $this->product_basename = plugin_basename($this->product_file);
             if(isset($args['activation_redirect']) && is_string($args['activation_redirect']))
             {
                 $this->activation_redirect = $args['activation_redirect'];
@@ -146,6 +172,11 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
         {
             return $this->purchase_manager;
         }
+        private function get_theme_basename() {
+            $theme_root = get_theme_root();
+            $relative_path = str_replace(trailingslashit($theme_root), '', $this->product_file);
+            return $relative_path; 
+        }
         private function initialize($args) 
         {
             $this->define_constants();
@@ -162,6 +193,7 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             ), $this->debug_mode);
             $this->license_manager = License_Manager::get_instance(
                 $this->product_slug,
+                $this->product_name,
                 $this->api_key,
                 $this->developer_mode,
                 $this->secret_key,
@@ -175,15 +207,15 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             {
                 $this->update_manager    = Update_Manager::get_instance( $this->wpbay_product_id, $this->product_slug, $this->product_file, $this->api_manager, $this->license_manager, $this->notice_manager, $this->product_type, $this->is_free, $this->debug_mode );
             }
-            if (!$this->disable_feedback) 
+            if (!$this->disable_feedback && !empty($this->wpbay_product_id) && !empty($this->api_key)) 
             {
-                $this->feedback_manager  = Feedback_Manager::get_instance($this->product_slug, $this->api_manager, $this->license_manager, $this->product_file, $this->debug_mode);
+                $this->feedback_manager  = Feedback_Manager::get_instance($this->product_slug, $this->api_manager, $this->license_manager, $this->product_file, $this->wpbay_product_id, $this->debug_mode);
             }
-            if (!$this->disable_analytics) 
+            if (!$this->disable_analytics && !empty($this->wpbay_product_id) && !empty($this->api_key)) 
             {
-                $this->analytics_manager = Analytics_Manager::get_instance($this->product_slug, $this->api_manager, $this->license_manager, $this->notice_manager, $this->product_type, $this->debug_mode);
+                $this->analytics_manager = Analytics_Manager::get_instance($this->product_slug, $this->api_manager, $this->license_manager, $this->notice_manager, $this->wpbay_product_id, $this->product_type, $this->debug_mode);
             }
-            if ($this->is_free && $this->is_upgradable) 
+            if ($this->is_free && $this->is_upgradable && !empty($this->wpbay_product_id) && !empty($this->api_key)) 
             {
                 $this->purchase_manager  = Purchase_Manager::get_instance(
                     $this->product_slug,
@@ -194,10 +226,10 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
                     $this->debug_mode
                 );
             }
-            $this->contact_form_manager = Contact_Form_Manager::get_instance($this->product_slug, $this->api_manager, $this->license_manager, $this->is_free, $this->no_activation_required, $this->debug_mode);
-            $this->menu_manager = Menu_Manager::get_instance($args, $this->product_slug, $this->product_basename, $this->product_type, $this->uploaded_to_wp_org, $this->no_activation_required, $this->license_manager, $this->contact_form_manager, $this->purchase_manager, $this->debug_mode);
+            $this->contact_form_manager = Contact_Form_Manager::get_instance($this->product_slug, $this->api_manager, $this->license_manager, $this->is_free, $this->no_activation_required, $this->wpbay_product_id, $this->debug_mode);
+            $this->menu_manager = Menu_Manager::get_instance($args, $this->product_slug, $this->product_basename, $this->product_type, $this->uploaded_to_wp_org, $this->no_activation_required, $this->license_manager, $this->contact_form_manager, $this->purchase_manager, $this->wpbay_product_id, $this->api_key, $this->debug_mode);
             
-            if(!empty($this->rating_notice) && !empty($this->wpbay_product_id))
+            if(!empty($this->rating_notice) && !empty($this->wpbay_product_id) && !empty($this->api_key))
             {
                 $activation_time = $this->license_manager->get_activation_time();
                 if(is_numeric($activation_time))
@@ -562,7 +594,7 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
 
                 add_action('activate_' . $this->product_basename, array($this, 'activate_product_event_hook'));
                 
-                if (!$this->disable_analytics) 
+                if (!$this->disable_analytics && !empty($this->wpbay_product_id) && !empty($this->api_key) && !empty($this->product_slug)) 
                 {
                     add_action('activate_' . $this->product_basename, array( $this->analytics_manager, 'track_activation' ));
                     add_action('deactivate_' . $this->product_basename, array( $this->analytics_manager, 'track_deactivation' ));
@@ -578,14 +610,14 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
 
                 add_action('after_switch_theme', array($this, 'activate_product_event_hook'));
 
-                if (!$this->disable_analytics) 
+                if (!$this->disable_analytics && !empty($this->wpbay_product_id) && !empty($this->api_key) && !empty($this->product_slug)) 
                 {
                     add_action('after_switch_theme', array( $this->analytics_manager, 'track_activation' ));
                     add_action('switch_theme', array( $this->analytics_manager, 'track_deactivation' ));
                 }
             }
 
-            if (!$this->disable_analytics) 
+            if (!$this->disable_analytics && !empty($this->wpbay_product_id) && !empty($this->api_key) && !empty($this->product_slug)) 
             {
                 set_error_handler(array($this->analytics_manager, 'handle_error'));
                 register_shutdown_function(array($this->analytics_manager, 'handle_shutdown'));
@@ -616,5 +648,8 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             return !empty($result);
         }
     }
+    add_action('init', function() {
+        load_plugin_textdomain('wpbay', false, basename(dirname(__FILE__)) . '/languages');
+    });
 }
 ?>

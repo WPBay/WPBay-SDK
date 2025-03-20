@@ -17,6 +17,7 @@ class License_Manager
     private $option_name  = 'wpbay_sdk_license_data';
     private $api_key      = '';
     private $product_slug  = 'wpbay';
+    private $product_name  = '';
     private $wpbay_product_id  = '';
     private $developer_mode = '0';
     private $secret_key     = '';
@@ -26,7 +27,7 @@ class License_Manager
     private $api_manager;
     private $debug_mode;
 
-    private function __construct($product_slug, $api_key, $dev_mode, $secret_key, $notice_manager, $wpbay_product_id, $this_sdk_version, $api_manager, $debug_mode) 
+    private function __construct($product_slug, $product_name, $api_key, $dev_mode, $secret_key, $notice_manager, $wpbay_product_id, $this_sdk_version, $api_manager, $debug_mode) 
     {
         $this->product_slug = $product_slug;
         $product_info = $this->get_product_info();
@@ -59,14 +60,15 @@ class License_Manager
         $this->this_sdk_version = $this_sdk_version;
         $this->api_manager = $api_manager;
         $this->debug_mode = $debug_mode;
+        $this->product_name = $product_name;
         //license check once per day?
         add_action( 'wpbay_sdk_license_check_event_' . $this->product_slug, array( $this, 'check_license_status' ) );
     }
-    public static function get_instance($product_slug, $api_key, $dev_mode, $secret_key, $notice_manager, $wpbay_product_id, $this_sdk_version, $api_manager, $debug_mode) 
+    public static function get_instance($product_slug, $product_name, $api_key, $dev_mode, $secret_key, $notice_manager, $wpbay_product_id, $this_sdk_version, $api_manager, $debug_mode) 
     {
         if (!isset(self::$instances[$product_slug])) 
         {
-            self::$instances[$product_slug] = new self($product_slug, $api_key, $dev_mode, $secret_key, $notice_manager, $wpbay_product_id, $this_sdk_version, $api_manager, $debug_mode);
+            self::$instances[$product_slug] = new self($product_slug, $product_name, $api_key, $dev_mode, $secret_key, $notice_manager, $wpbay_product_id, $this_sdk_version, $api_manager, $debug_mode);
         }
         return self::$instances[$product_slug];
     }
@@ -244,7 +246,7 @@ class License_Manager
         else 
         {
             echo '<div class="wpbay-sdk-register-form">';
-            echo '<p class="description">' . esc_html__( 'Register your product by entering the purchase code below.', 'wpbay-sdk' ) . '</p>';
+            echo '<p class="description">' . esc_html__( 'Register your product by entering your WPBay.com purchase code below.', 'wpbay-sdk' ) . '</p>';
             echo '<form method="post" class="wpbay-sdk-form">';
             echo '<table class="form-table"><tr><th scope="row">';
 echo '<label for="wpbay_sdk_purchase_code' . esc_attr($product_slug) . '">' . esc_html__( 'Purchase Code:', 'wpbay-sdk' ) . '</label>';
@@ -755,7 +757,7 @@ echo '</td></tr></table>';
     {
         if ( empty($this->get_purchase_code()) ) 
         {
-            $license_notice = sprintf( wp_kses( __( "Your license is not active for the plugin %s. Please activate your license to receive updates and support.", 'aiomatic-automatic-ai-content-writer'), array() ), esc_html($this->product_slug) );
+            $license_notice = sprintf( wp_kses( __( "Your license is not active for: <a href=\"https://wpbay.com/?p=%s\" target=\"_blank\"><strong>%s</strong></a>. Please activate your license to use this product.", 'aiomatic-automatic-ai-content-writer'), array('strong' => array(),'a' => array('href' => array(),'target' => array())) ), esc_html($this->wpbay_product_id), esc_html($this->product_name) );
             $license_notice = apply_filters( 'wpbay_sdk_activate_license_notice', $license_notice );
             $this->notice_manager->add_notice($license_notice, 'warning');
         }

@@ -15,13 +15,17 @@ class Contact_Form_Manager
     private $debug_mode;
     private $no_activation_required;
     private $is_free;
+    private $product_id;
     private static $initialized = false;
 
-    private function __construct($product_slug, $api_manager, $license_manager, $is_free, $no_activation_required, $debug_mode) {
+    private function __construct($product_slug, $api_manager, $license_manager, $is_free, $no_activation_required, $product_id, $debug_mode) {
         $this->product_slug = $product_slug;
         $this->api_manager = $api_manager;
         $this->debug_mode = $debug_mode;
         $this->license_manager = $license_manager;
+        $this->no_activation_required = $no_activation_required;
+        $this->is_free = $is_free;
+        $this->product_id = $product_id;
         $this->wpbay_sdk_api_endpoint = 'https://wpbay.com/api/contact/v1/submit';
 
         add_action('admin_init', array($this, 'register_contact_form_settings_field'));
@@ -29,9 +33,9 @@ class Contact_Form_Manager
         add_action('wp_ajax_wpbay_sdk_send_contact_message_' . sanitize_title($this->product_slug), array($this, 'handle_form_submission'));
     }
 
-    public static function get_instance($product_slug, $api_manager, $license_manager, $is_free, $no_activation_required, $debug_mode) {
+    public static function get_instance($product_slug, $api_manager, $license_manager, $is_free, $no_activation_required, $product_id, $debug_mode) {
         if (!isset(self::$instances[$product_slug])) {
-            self::$instances[$product_slug] = new self($product_slug, $api_manager, $license_manager, $is_free, $no_activation_required, $debug_mode);
+            self::$instances[$product_slug] = new self($product_slug, $api_manager, $license_manager, $is_free, $no_activation_required, $product_id, $debug_mode);
         }
         return self::$instances[$product_slug];
     }
@@ -78,6 +82,11 @@ class Contact_Form_Manager
     }
 
     public function contact_form_field_callback() {
+        if(empty($this->product_id))
+        {
+            echo 'To use this feature, you need to add a valid product ID in the WPBay SDK parameters.';
+            return;
+        }
         $current_user = wp_get_current_user();
         $user_email = !empty($current_user->user_email) ? $current_user->user_email : '';
         $first_name = !empty($current_user->first_name) ? $current_user->first_name : '';
@@ -245,9 +254,13 @@ if ( !empty($purchase_code) )
         $summary = isset($_POST['summary']) ? sanitize_text_field($_POST['summary']) : '';
         $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
         if (empty($first_name) || empty($last_name) || empty($email) || empty($request_type) || empty($summary) || empty($message)) {
-            wp_send_json_error(__('All fields are required.', 'wpbay-sdk'));
+            wp_send_json_error(esc_html__('All fields are required.', 'wpbay-sdk'));
         }
-
+        if(empty($this->product_id))
+        {
+            wp_send_json_error(esc_html__('To use this feature, you need to add a valid product ID in the WPBay SDK parameters.', 'wpbay-sdk'));
+            return;
+        }
         $response = $this->send_contact_message_to_api($first_name, $last_name, $email, $request_type, $summary, $message);
 
         if (is_wp_error($response)) {
@@ -263,6 +276,7 @@ if ( !empty($purchase_code) )
         $args = array(
             'body' => array(
                 'product_slug' => $this->product_slug,
+                'product_id'   => $this->product_id,
                 'first_name'   => $first_name,
                 'last_name'    => $last_name,
                 'email'        => $email,

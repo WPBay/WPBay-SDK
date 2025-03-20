@@ -29,26 +29,30 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
         private $contact_form_manager = null;
         private $purchase_manager = null;
         private $license_manager = null;
+        private $product_id = null;
+        private $api_key = null;
         private $debug_mode = false;
 
         private $menu_parent_slug = null;
         private $uploaded_to_wp_org = false;
         private $capability = 'manage_options';
 
-        public static function get_instance($args, $product_slug, $product_basename, $product_type, $uploaded_to_wp_org, $no_activation_required, $license_manager, $contact_form_manager, $purchase_manager, $debug_mode)
+        public static function get_instance($args, $product_slug, $product_basename, $product_type, $uploaded_to_wp_org, $no_activation_required, $license_manager, $contact_form_manager, $purchase_manager, $product_id, $api_key, $debug_mode)
         {
             if (!isset(self::$instances[$product_slug])) {
-                self::$instances[$product_slug] = new self($args, $product_slug, $product_basename, $product_type, $uploaded_to_wp_org, $no_activation_required, $license_manager, $contact_form_manager, $purchase_manager, $debug_mode);
+                self::$instances[$product_slug] = new self($args, $product_slug, $product_basename, $product_type, $uploaded_to_wp_org, $no_activation_required, $license_manager, $contact_form_manager, $purchase_manager, $product_id, $api_key, $debug_mode);
             }
             return self::$instances[$product_slug];
         }
 
-        private function __construct($args, $product_slug, $product_basename, $product_type, $uploaded_to_wp_org, $no_activation_required, $license_manager, $contact_form_manager, $purchase_manager, $debug_mode)
+        private function __construct($args, $product_slug, $product_basename, $product_type, $uploaded_to_wp_org, $no_activation_required, $license_manager, $contact_form_manager, $purchase_manager, $product_id, $api_key, $debug_mode)
         {
             $this->product_slug         = $product_slug;
             $this->product_basename     = $product_basename;
             $this->product_type         = $product_type;
             $this->uploaded_to_wp_org   = $uploaded_to_wp_org;
+            $this->product_id           = $product_id;
+            $this->api_key              = $api_key;
             $this->license_manager      = $license_manager;
             $this->debug_mode           = $debug_mode;
 
@@ -731,7 +735,7 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
                     array($this, 'render_support_page')
                 );
             }
-            if ($this->disable_upgrade_form !== true && $this->is_free && $this->is_upgradable && $this->purchase_manager !== null) 
+            if ($this->disable_upgrade_form !== true && $this->is_free && $this->is_upgradable && !empty($this->product_id) && !empty($this->api_key) && $this->purchase_manager !== null) 
             {
                 wp_enqueue_style(
                     'wpbay-purchase-manager-style',

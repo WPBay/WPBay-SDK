@@ -9,6 +9,7 @@ class Analytics_Manager
 {
     private static $instances = array();
     private $product_slug;
+    private $product_id;
     private $api_manager;
     private $license_manager;
     private $notice_manager;
@@ -18,9 +19,10 @@ class Analytics_Manager
     private $consent_shown;
     private $debug_mode;
 
-    private function __construct( $product_slug, $api_manager, $license_manager, $notice_manager, $type = 'plugin', $debug_mode = false ) 
+    private function __construct( $product_slug, $api_manager, $license_manager, $notice_manager, $product_id, $type = 'plugin', $debug_mode = false ) 
     {
         $this->product_slug    = $product_slug;
+        $this->product_id      = $product_id;
         $this->api_manager     = $api_manager;
         $this->license_manager = $license_manager;
         $this->notice_manager  = $notice_manager;
@@ -36,17 +38,19 @@ class Analytics_Manager
         add_action( 'admin_init', array( $this, 'send_batched_events' ) );
     }
 
-    public static function get_instance( $product_slug, $api_manager, $license_manager, $notice_manager, $type = 'plugin', $debug_mode = false ) 
+    public static function get_instance( $product_slug, $api_manager, $license_manager, $notice_manager, $product_id, $type = 'plugin', $debug_mode = false ) 
     {
         if (!isset(self::$instances[$product_slug])) 
         {
-            self::$instances[$product_slug] = new self( $product_slug, $api_manager, $license_manager, $notice_manager, $type, $debug_mode );
+            self::$instances[$product_slug] = new self( $product_slug, $api_manager, $license_manager, $notice_manager, $product_id, $type, $debug_mode );
         }
         return self::$instances[$product_slug];
     }
 
     public function log_event($event_name, $event_data = array()) 
     {
+        if (empty($this->product_slug)) return;
+        if (empty($this->product_id)) return;
         if ( ! $this->opted_in ) {
             return; 
         }
@@ -68,6 +72,8 @@ class Analytics_Manager
 
     public function send_batched_events() 
     {
+        if (empty($this->product_slug)) return;
+        if (empty($this->product_id)) return;
         $events = get_option("wpbay_sdk_{$this->product_slug}_analytics_log", array());
         if (empty($events)) return;
 
@@ -76,6 +82,7 @@ class Analytics_Manager
                 'api_key'       => $this->license_manager->get_api_key(),
                 'purchase_code' => $this->license_manager->get_purchase_code(),
                 'product_slug'  => $this->product_slug,
+                'product_id'    => $this->product_id,
                 'events'        => $events,
                 'site_url'      => home_url(),
                 'developer_mode'=> $this->license_manager->get_developer_mode(),

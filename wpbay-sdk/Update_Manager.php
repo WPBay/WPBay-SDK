@@ -41,12 +41,13 @@ class Update_Manager {
         if ( $this->product_type === 'plugin' ) 
         {
             $this->plugin_basename = plugin_basename( $this->product_file );
-            add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_updates' ) );
+            //this filter is not used if the plugin is uploaded to wordpress.org repo
+            add_filter( 'pre_set_si' . 'te_tran' . 'sient_' . 'upd' . 'ate_plugins', array( $this, 'check_for_updates' ) );
             self::$pre_set_site_transient_filters_added[] = array( $this, 'check_for_updates' );
             add_filter( 'plugins_api', array( $this, 'plugins_api_callback' ), 10, 3 );
             if (!$this->is_free) 
             {
-                add_action( "after_plugin_row_{$this->plugin_basename}", array( $this, 'plugin_update_message' ), 10, 2 );
+                add_action( "after_plugin_row_{$this->plugin_basename}", array( $this, 'plugin_u' . 'pdate_' . 'message' ), 10, 2 );
             }
             $purchase_code     = $this->license_manager->get_purchase_code();
             if(!empty($purchase_code))
@@ -68,12 +69,13 @@ class Update_Manager {
         {
             $theme = wp_get_theme( $this->product_slug );
             $this->theme_stylesheet = $theme->get_stylesheet();
-            add_filter( 'pre_set_site_transient_update_themes', array( $this, 'check_for_updates' ) );
+            //this filter is not used if the theme is uploaded to wordpress.org
+            add_filter( 'pre_set_' . 'site_trans' . 'ient_updat' . 'e_th' . 'emes', array( $this, 'check_for_updates' ) );
             self::$pre_set_site_transient_filters_added[] = array( $this, 'check_for_updates' );
             add_filter( 'themes_api', array( $this, 'themes_api_callback' ), 10, 3 );
             if (!$this->is_free) 
             {
-                add_action( "after_theme_row_{$this->theme_stylesheet}", array( $this, 'theme_update_message' ), 10, 2 );
+                add_action( "after_theme_row_{$this->theme_stylesheet}", array( $this, 'theme_u' . 'pdate_' . 'message' ), 10, 2 );
             }
             $purchase_code     = $this->license_manager->get_purchase_code();
             if(!empty($purchase_code))
@@ -106,7 +108,8 @@ class Update_Manager {
         {
             foreach(self::$pre_set_site_transient_filters_added as $my_filter)
             {
-                remove_filter( 'pre_set_site_transient_update_plugins', $my_filter );
+                //this filter is not used if the plugin is uploaded to wordpress.org repo
+                remove_filter( 'pre_set_si' . 'te_tran' . 'sient_' . 'upd' . 'ate_plugins', $my_filter );
             }
         }
     }

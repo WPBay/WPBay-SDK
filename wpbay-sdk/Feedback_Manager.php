@@ -14,9 +14,10 @@ class Feedback_Manager
     private $product_file;
     private $product_basename;
     private $debug_mode;
+    private $wpbay_product_id;
     private $api_endpoint = 'https://wpbay.com/api/feedback/v1/';
 
-    private function __construct( $product_slug, $api_manager, $license_manager, $product_file, $debug_mode ) 
+    private function __construct( $product_slug, $api_manager, $license_manager, $product_file, $wpbay_product_id, $debug_mode ) 
     {
         $this->product_slug       = $product_slug;
         $this->api_manager        = $api_manager;
@@ -28,11 +29,11 @@ class Feedback_Manager
         add_action( 'wp_ajax_wpbay_sdk_submit_feedback', array( $this, 'handle_feedback_submission' ) );
     }
 
-    public static function get_instance( $product_slug, $api_manager, $license_manager, $product_file, $debug_mode ) 
+    public static function get_instance( $product_slug, $api_manager, $license_manager, $product_file, $wpbay_product_id, $debug_mode ) 
     {
         if (!isset(self::$instances[$product_slug])) 
         {
-            self::$instances[$product_slug] = new self( $product_slug, $api_manager, $license_manager, $product_file, $debug_mode );
+            self::$instances[$product_slug] = new self( $product_slug, $api_manager, $license_manager, $product_file, $wpbay_product_id, $debug_mode );
         }
         return self::$instances[$product_slug];
     }
@@ -85,6 +86,7 @@ class Feedback_Manager
                 'select_reason' => $select_reason,
                 'product_file'  => $this->product_file,
                 'is_active_theme' => $is_active_theme,
+                'product_id'    => $this->wpbay_product_id
             );
         }
         else
@@ -100,6 +102,7 @@ class Feedback_Manager
                 'select_reason' => $select_reason,
                 'product_file'  => $this->product_file,
                 'is_active_theme' => $is_active_theme,
+                'product_id'    => $this->wpbay_product_id
             );
         }
         wp_localize_script( 'wpbay-feedback-manager-script-' . $this->product_slug, 'FeedbackManagerData', self::$feedback_manager_data);
@@ -137,8 +140,9 @@ class Feedback_Manager
         $reason       = isset( $_POST['reason'] ) ? sanitize_text_field( wp_unslash( $_POST['reason'] ) ) : '';
         $details      = isset( $_POST['details'] ) ? sanitize_textarea_field( wp_unslash( $_POST['details'] ) ) : '';
         $product_slug = isset( $_POST['product_slug'] ) ? sanitize_text_field( wp_unslash( $_POST['product_slug'] ) ) : '';
+        $product_id   = isset( $_POST['product_id'] ) ? sanitize_text_field( wp_unslash( $_POST['product_id'] ) ) : '';
 
-        if ( empty( $reason ) || empty( $product_slug ) ) {
+        if ( empty( $reason ) || empty( $product_slug ) || empty( $product_id ) ) {
             wp_send_json_error( array( 'message' => esc_html__( 'Invalid feedback data.', 'wpbay-sdk' ) ) );
         }
 
@@ -152,6 +156,7 @@ class Feedback_Manager
             'body' => array(
                 'purchase_code' => $purchase_code,
                 'product_slug'  => $product_slug,
+                'product_id'    => $product_id,
                 'reason'        => $reason,
                 'details'       => $details,
                 'site_url'      => home_url(),

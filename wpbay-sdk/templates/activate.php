@@ -30,7 +30,7 @@ if ($template_vars['is_free'] === false)
     else 
     {
         echo '<div class="wpbay-sdk-register-form">';
-        echo '<p class="description">' . esc_html__( 'Register your product by entering the purchase code below.', 'wpbay-sdk' ) . '</p>';
+        echo '<p class="description">' . esc_html__( 'Register your product by entering your WPBay.com purchase code below.', 'wpbay-sdk' ) . '</p>';
         echo '<form method="post" class="wpbay-sdk-form">';
         echo '<table class="form-table"><tr><th scope="row">';
 echo '<label for="wpbay_sdk_purchase_code' . esc_attr($product_slug) . '">' . esc_html__( 'Purchase Code:', 'wpbay-sdk' ) . '</label>';
