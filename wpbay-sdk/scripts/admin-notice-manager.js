@@ -29,7 +29,8 @@ jQuery(document).ready(function($)
         var productSlug = notice.data('slug');
         $.post(wpbay_sdk_ajax.ajax_url, {
             action: 'wpbay_sdk_dismiss_admin_notice' + productSlug.wpbayToSlug(),
-            notice_key: noticeKey
+            notice_key: noticeKey,
+            _ajax_nonce: wpbay_sdk_ajax.nonce
         }, function(response) {
             if (response.success) {
                 notice.fadeOut();

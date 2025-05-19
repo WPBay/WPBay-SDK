@@ -1,0 +1,432 @@
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: WPBay SDK\n"
+"POT-Creation-Date: 2025-03-20 10:46+0200\n"
+"PO-Revision-Date: 2025-03-20 10:46+0200\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+"X-Generator: Poedit 3.5\n"
+"X-Poedit-Basepath: ..\n"
+"X-Poedit-Flags-xgettext: --add-comments=translators:\n"
+"X-Poedit-WPHeader: wpbay.php\n"
+"X-Poedit-SourceCharset: UTF-8\n"
+"X-Poedit-KeywordsList: __;_e;_n:1,2;_x:1,2c;_ex:1,2c;_nx:4c,1,2;esc_attr__;"
+"esc_attr_e;esc_attr_x:1,2c;esc_html__;esc_html_e;esc_html_x:1,2c;_n_noop:1,2;"
+"_nx_noop:3c,1,2;__ngettext_noop:1,2\n"
+"X-Poedit-SearchPath-0: .\n"
+"X-Poedit-SearchPathExcluded-0: *.min.js\n"
+
+#: Analytics_Manager.php:174
+msgid ""
+"We would like to collect anonymous usage data to help improve this product. "
+"No personal information will be collected."
+msgstr ""
+
+#: Analytics_Manager.php:175
+msgid "Allow"
+msgstr ""
+
+#: Analytics_Manager.php:176
+msgid "No, thanks"
+msgstr ""
+
+#: Contact_Form_Manager.php:69
+msgid "Get in Touch with the Author"
+msgstr ""
+
+#: Contact_Form_Manager.php:76
+msgid "Contact Form"
+msgstr ""
+
+#: Contact_Form_Manager.php:102
+msgid "First Name:"
+msgstr ""
+
+#: Contact_Form_Manager.php:108
+msgid "Your first name"
+msgstr ""
+
+#: Contact_Form_Manager.php:114
+msgid "Last Name:"
+msgstr ""
+
+#: Contact_Form_Manager.php:120
+msgid "Your last name"
+msgstr ""
+
+#: Contact_Form_Manager.php:126
+msgid "Email Address:"
+msgstr ""
+
+#: Contact_Form_Manager.php:132
+msgid "Your contact email"
+msgstr ""
+
+#: Contact_Form_Manager.php:138
+msgid "Type of Request:"
+msgstr ""
+
+#: Contact_Form_Manager.php:145
+msgid "Pre-Sale Question"
+msgstr ""
+
+#: Contact_Form_Manager.php:155
+msgid "Technical Support"
+msgstr ""
+
+#: Contact_Form_Manager.php:156
+msgid "Billing Inquiry"
+msgstr ""
+
+#: Contact_Form_Manager.php:160
+msgid "Feature Suggestion"
+msgstr ""
+
+#: Contact_Form_Manager.php:161
+msgid "Customization Request"
+msgstr ""
+
+#: Contact_Form_Manager.php:162
+msgid "Press Inquiry"
+msgstr ""
+
+#: Contact_Form_Manager.php:169
+msgid "Subject:"
+msgstr ""
+
+#: Contact_Form_Manager.php:175
+msgid "Your title"
+msgstr ""
+
+#: Contact_Form_Manager.php:181
+msgid "Detailed Description:"
+msgstr ""
+
+#: Contact_Form_Manager.php:187
+msgid "Your detailed description"
+msgstr ""
+
+#: Contact_Form_Manager.php:193
+msgid "Submit"
+msgstr ""
+
+#: Contact_Form_Manager.php:227
+msgid "Sending..."
+msgstr ""
+
+#: Contact_Form_Manager.php:231
+msgid "Your message has been sent successfully!"
+msgstr ""
+
+#: Contact_Form_Manager.php:238
+msgid "An error occurred. Please try again."
+msgstr ""
+
+#: Contact_Form_Manager.php:257
+msgid "All fields are required."
+msgstr ""
+
+#: Contact_Form_Manager.php:261
+msgid ""
+"To use this feature, you need to add a valid product ID in the WPBay SDK "
+"parameters."
+msgstr ""
+
+#: Contact_Form_Manager.php:307
+msgid "Failed to send message: "
+msgstr ""
+
+#: Contact_Form_Manager.php:316
+msgid "An unknown error occurred."
+msgstr ""
+
+#: Feedback_Manager.php:61
+msgid "Quick Feedback"
+msgstr ""
+
+#: Feedback_Manager.php:65
+msgid "Before you deactivate, please let us know why:"
+msgstr ""
+
+#: Feedback_Manager.php:69
+msgid "We appreciate your feedback to help us improve."
+msgstr ""
+
+#: Feedback_Manager.php:73
+msgid "Please select a reason for deactivating."
+msgstr ""
+
+#: Feedback_Manager.php:120
+msgid "I encountered technical problems"
+msgstr ""
+
+#: Feedback_Manager.php:121
+msgid "I found an alternative solution"
+msgstr ""
+
+#: Feedback_Manager.php:122
+msgid "It lacks a feature I need"
+msgstr ""
+
+#: Feedback_Manager.php:123
+msgid "Just temporarily deactivating"
+msgstr ""
+
+#: Feedback_Manager.php:124
+msgid "I no longer require this plugin"
+msgstr ""
+
+#: Feedback_Manager.php:125
+msgid "It was difficult to set up"
+msgstr ""
+
+#: Feedback_Manager.php:126
+msgid "Theme or plugin compatibility issues"
+msgstr ""
+
+#: Feedback_Manager.php:127
+msgid "It slowed down my site"
+msgstr ""
+
+#: Feedback_Manager.php:128
+msgid "Unsatisfied with support"
+msgstr ""
+
+#: Feedback_Manager.php:129
+msgid "The product was hard to use"
+msgstr ""
+
+#: Feedback_Manager.php:130
+msgid "I upgraded to the premium version"
+msgstr ""
+
+#: Feedback_Manager.php:131
+msgid "Other"
+msgstr ""
+
+#: Feedback_Manager.php:146
+msgid "Invalid feedback data."
+msgstr ""
+
+#: Feedback_Manager.php:151
+msgid "License not found."
+msgstr ""
+
+#: Feedback_Manager.php:177
+msgid "Failed to submit feedback."
+msgstr ""
+
+#: Feedback_Manager.php:180
+msgid "Feedback submitted successfully."
+msgstr ""
+
+#: License_Manager.php:209
+msgid "WPBay License"
+msgstr ""
+
+#: License_Manager.php:215
+msgid "License Registration"
+msgstr ""
+
+#: License_Manager.php:234 templates/activate.php:19
+msgid "Your purchase code is registered."
+msgstr ""
+
+#: License_Manager.php:237 License_Manager.php:252 templates/activate.php:36
+msgid "Purchase Code:"
+msgstr ""
+
+#: License_Manager.php:238 templates/activate.php:22
+msgid "Revoke Code"
+msgstr ""
+
+#: License_Manager.php:239 templates/activate.php:23
+msgid "Code Is Registered?"
+msgstr ""
+
+#: License_Manager.php:240 templates/activate.php:24
+msgid "Validate Code"
+msgstr ""
+
+#: License_Manager.php:249 templates/activate.php:33
+msgid "Register your product by entering your WPBay.com purchase code below."
+msgstr ""
+
+#: License_Manager.php:257 templates/activate.php:41
+msgid "Register"
+msgstr ""
+
+#: License_Manager.php:760
+#, php-format
+msgid ""
+"Your license is not active for: <a href=\"https://wpbay.com/?p=%s\" "
+"target=\"_blank\"><strong>%s</strong></a>. Please activate your license to "
+"use this product."
+msgstr ""
+
+#: Menu_Manager.php:173
+msgid "Activate License"
+msgstr ""
+
+#: Menu_Manager.php:712
+msgid "Contact"
+msgstr ""
+
+#: Menu_Manager.php:726
+msgid "Support"
+msgstr ""
+
+#: Menu_Manager.php:745
+msgid "Upgrade"
+msgstr ""
+
+#: Menu_Manager.php:768
+msgid "Welcome to the main settings page of"
+msgstr ""
+
+#: Purchase_Manager.php:67
+msgid "Register your purchase code"
+msgstr ""
+
+#: Purchase_Manager.php:76
+msgid "Upgrade Options"
+msgstr ""
+
+#: Purchase_Manager.php:95
+msgid "Upgrade to Unlock More Features"
+msgstr ""
+
+#: Purchase_Manager.php:96
+msgid ""
+"Choose a license that suits your needs and enjoy premium features, priority "
+"support, and updates."
+msgstr ""
+
+#: Purchase_Manager.php:113
+msgid "Unlimited"
+msgstr ""
+
+#: Purchase_Manager.php:127
+msgid "Site License"
+msgstr ""
+
+#: Purchase_Manager.php:135
+msgid "Upgrade Now"
+msgstr ""
+
+#: Purchase_Manager.php:181
+msgid "No upgrade options available at the moment."
+msgstr ""
+
+#: Update_Manager.php:117 Update_Manager.php:181
+msgid "Check for updates"
+msgstr ""
+
+#: Update_Manager.php:145 Update_Manager.php:174
+msgid "Update check completed."
+msgstr ""
+
+#: Update_Manager.php:502
+msgid ""
+"The remote plugin package does not contain a folder with the desired slug "
+"and renaming did not work."
+msgstr ""
+
+#: Update_Manager.php:502 Update_Manager.php:510
+msgid ""
+"Please contact the plugin provider and ask them to package their plugin "
+"according to the WordPress guidelines."
+msgstr ""
+
+#: Update_Manager.php:510
+msgid ""
+"The remote plugin package consists of more than one file, but the files are "
+"not packaged in a folder."
+msgstr ""
+
+#: Update_Manager.php:539
+msgid ""
+"The remote theme package does not contain a folder with the desired slug and "
+"renaming did not work."
+msgstr ""
+
+#: Update_Manager.php:539 Update_Manager.php:547
+msgid ""
+"Please contact the theme provider and ask them to package their theme "
+"according to the WordPress guidelines."
+msgstr ""
+
+#: Update_Manager.php:547
+msgid ""
+"The remote theme package consists of more than one file, but the files are "
+"not packaged in a folder."
+msgstr ""
+
+#: Update_Manager.php:570
+msgid "Failed to rename plugin directory."
+msgstr ""
+
+#: Update_Manager.php:583
+msgid "Failed to rename theme directory."
+msgstr ""
+
+#: Update_Manager.php:596
+msgid "Please activate your plugin's license to receive updates."
+msgstr ""
+
+#: Update_Manager.php:607
+msgid "Please activate your theme's license to receive updates."
+msgstr ""
+
+#: WPBay_SDK.php:245
+#, php-format
+msgid ""
+"Hey, I noticed you are using the %s %s for some time now - that's really "
+"awesome! Could you please do a favor and give it <b><a href='%s' "
+"target='_blank'>a 5-star rating</a></b>? Just to help us spread the word and "
+"boost our motivation. Thank you!"
+msgstr ""
+
+#: WPBay_SDK.php:256
+msgid "Developer Mode"
+msgstr ""
+
+#: WPBay_SDK.php:259
+msgid "Debug Mode"
+msgstr ""
+
+#: WPBay_SDK.php:263
+#, php-format
+msgid ""
+"WPBay SDK (%s) is currently running in %s. Don't forget to disable this "
+"before you go live!"
+msgstr ""
+
+#: WPBay_SDK.php:436 WPBay_SDK.php:437
+msgid "WPBay Developer Mode"
+msgstr ""
+
+#: WPBay_SDK.php:448
+msgid "WPBay Settings"
+msgstr ""
+
+#: WPBay_SDK.php:474 WPBay_SDK.php:475
+msgid "WPBay Network Developer Mode"
+msgstr ""
+
+#: WPBay_SDK.php:486
+msgid "WPBay Network Settings"
+msgstr ""
+
+#: templates/activate.php:48
+msgid "This product is free to use."
+msgstr ""
+
+#. Plugin Name of the plugin/theme
+msgid "WPBay SDK"
+msgstr ""

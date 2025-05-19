@@ -47,8 +47,9 @@ if ( ! class_exists( 'Admin_Notice_Manager' ) )
         }
         public static function enqueue_dismiss_script() 
         {
-            wp_enqueue_script( 'wpbay-admin-notice-manager', plugins_url( '/scripts/admin-notice-manager.js', __FILE__ ), array( 'jquery' ), false, true );
-            wp_localize_script( 'wpbay-admin-notice-manager', 'wpbay_sdk_ajax', array( 'ajax_url' => admin_url( 'admin-ajax.php' ) ) );
+            global $wpbay_sdk_version;
+            wp_enqueue_script( 'wpbay-admin-notice-manager', plugins_url( '/scripts/admin-notice-manager.js', __FILE__ ), array( 'jquery' ), $wpbay_sdk_version, true );
+            wp_localize_script( 'wpbay-admin-notice-manager', 'wpbay_sdk_ajax', array( 'ajax_url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'wpbay_sdk_dismiss_notice' ) ) );
         }
         public function add_notice( $message, $type = 'info', $sticky = false ) 
         {
@@ -98,12 +99,23 @@ if ( ! class_exists( 'Admin_Notice_Manager' ) )
                 }
                 echo '<div class="' . esc_attr($class) . '" data-notice-key="' . esc_attr($key) . '" data-slug="' . esc_attr($this->slug) . '">';
                 
-                echo '<p>' .  $notice['message'] . '</p>';
+                echo '<p>' . wp_kses( $notice['message'], array( 
+                    'strong' => array(), 
+                    'em' => array(), 
+                    'b' => array(), 
+                    'i' => array(), 
+                    'a' => array( 'href' => array(), 'target' => array() ) 
+                ) ) . '</p>';
                 echo '</div>';
             }
         }
         public function handle_dismiss_notice() 
         {
+            check_ajax_referer( 'wpbay_sdk_dismiss_notice' );
+            if(!current_user_can( 'edit_posts' ))
+            {
+                return;
+            }
             $key = isset( $_POST['notice_key'] ) ? intval( $_POST['notice_key'] ) : false;
             if ( $key !== false && isset( $this->notices[ $key ] ) ) {
                 unset( $this->notices[ $key ] );

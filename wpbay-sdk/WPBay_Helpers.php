@@ -1,4 +1,70 @@
 <?php
+if (!function_exists('wpbay_get_text_inline')) 
+{
+    function wpbay_get_text_inline( $text, $slug = 'wpbay-sdk', $key = '') 
+    {
+        list( $text, $text_domain ) = wpbay_text_and_domain( $text, $slug, $key );
+        $fn = 'translate';
+        return $fn( $text, $text_domain );
+    }
+}
+if (!function_exists('wpbay_esc_html_get_text_inline')) 
+{
+    function wpbay_esc_html_get_text_inline( $text, $slug = 'wpbay-sdk', $key = '') 
+    {
+        list( $text, $text_domain ) = wpbay_text_and_domain( $text, $slug, $key );
+        $fn = 'translate';
+        return esc_html($fn( $text, $text_domain ));
+    }
+}
+if (!function_exists('wpbay_text_and_domain')) 
+{
+    function wpbay_text_and_domain( $text, $slug, $key ) 
+    {
+        $override = wpbay_text_override( $text, $slug, $key );
+        $text_domain = ( false === $override ) ? 'wpbay-sdk' : $slug;
+        if ( false !== $override ) {
+            $text = $override;
+        }
+        return array( $text, $text_domain );
+    }
+}
+if (!function_exists('wpbay_text_override')) 
+{
+    function wpbay_text_override( $text, $slug, $key ) 
+    {
+        global $wpbay_text_overrides;
+        if ( ! isset( $wpbay_text_overrides[ $slug ] ) ) {
+            return false;
+        }
+        if ( empty( $key ) ) {
+            $key = strtolower( str_replace( ' ', '-', $text ) );
+        }
+        if ( isset( $wpbay_text_overrides[ $slug ][ $key ] ) ) {
+            return $wpbay_text_overrides[ $slug ][ $key ];
+        }
+        $lower_key = strtolower( $key );
+        if ( isset( $wpbay_text_overrides[ $slug ][ $lower_key ] ) ) {
+            return $wpbay_text_overrides[ $slug ][ $lower_key ];
+        }
+        return false;
+    }
+}
+if (!function_exists('wpbay_override_i18n')) 
+{
+    function wpbay_override_i18n( array $key_value, $slug = 'wpbay-sdk' ) 
+    {
+        global $wpbay_text_overrides;
+
+        if ( ! isset( $wpbay_text_overrides[ $slug ] ) ) {
+            $wpbay_text_overrides[ $slug ] = array();
+        }
+
+        foreach ( $key_value as $key => $value ) {
+            $wpbay_text_overrides[ $slug ][ $key ] = $value;
+        }
+    }
+}
 if (!function_exists('wpbay_sdk_normalize_path')) 
 {
     function wpbay_sdk_normalize_path($path) 
@@ -27,8 +93,16 @@ if (!function_exists('wpbay_log_to_file'))
 {
     function wpbay_log_to_file($str)
     {
-        $d = date("j-M-Y H:i:s e", current_time( 'timestamp' ));
-        error_log("[$d] " . $str . "<br/>\r\n", 3, WP_CONTENT_DIR . '/wpbay_info.log');
+        global $wp_filesystem;
+        if ( ! is_a( $wp_filesystem, 'WP_Filesystem_Base') ){
+            include_once(ABSPATH . 'wp-admin/includes/file.php');
+            $creds = request_filesystem_credentials( site_url() );
+            wp_filesystem($creds);
+        }
+        $log_file = WP_CONTENT_DIR . '/wpbay_info.log';
+        $timestamp = gmdate( 'j-M-Y H:i:s', current_time( 'timestamp' ) ) . ' UTC';
+        $log_entry = "[$timestamp] " . wp_strip_all_tags( $str ) . PHP_EOL;
+        $wp_filesystem->put_contents( $log_file, $log_entry, FILE_APPEND | LOCK_EX );
     }
 }
 if (!function_exists('wpbay_sdk_simple_decrypt')) 
@@ -212,17 +286,17 @@ if(!function_exists('wpbay_sdk_get_client_ip'))
     function wpbay_sdk_get_client_ip() {
         $ipaddress = '';
         if (isset($_SERVER['HTTP_CLIENT_IP']))
-            $ipaddress = $_SERVER['HTTP_CLIENT_IP'];
+            $ipaddress = sanitize_text_field(wp_unslash($_SERVER['HTTP_CLIENT_IP']));
         else if(isset($_SERVER['HTTP_X_FORWARDED_FOR']))
-            $ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
+            $ipaddress = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']));
         else if(isset($_SERVER['HTTP_X_FORWARDED']))
-            $ipaddress = $_SERVER['HTTP_X_FORWARDED'];
+            $ipaddress = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED']));
         else if(isset($_SERVER['HTTP_FORWARDED_FOR']))
-            $ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
+            $ipaddress = sanitize_text_field(wp_unslash($_SERVER['HTTP_FORWARDED_FOR']));
         else if(isset($_SERVER['HTTP_FORWARDED']))
-            $ipaddress = $_SERVER['HTTP_FORWARDED'];
+            $ipaddress = sanitize_text_field(wp_unslash($_SERVER['HTTP_FORWARDED']));
         else if(isset($_SERVER['REMOTE_ADDR']))
-            $ipaddress = $_SERVER['REMOTE_ADDR'];
+            $ipaddress = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
         else
             $ipaddress = 'UNKNOWN';
         return $ipaddress;
@@ -262,6 +336,10 @@ if (!function_exists('wpbay_sdk_get_last_caller'))
 {
     function wpbay_sdk_get_last_caller() 
     {
+        if ( defined( 'WPBAY_SDK_DISABLE_BACKTRACE' ) && WPBAY_SDK_DISABLE_BACKTRACE ) {
+            return null;
+        }
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- This is safe for production, the SDK uses it to get last caller, no output or logging occurs
         $backtrace = debug_backtrace();
         if(isset($backtrace[0]['file']))
         {
@@ -332,6 +410,10 @@ if (!function_exists('wpbay_sdk_detect_context'))
 {
     function wpbay_sdk_detect_context() 
     {
+        if ( defined( 'WPBAY_SDK_DISABLE_BACKTRACE' ) && WPBAY_SDK_DISABLE_BACKTRACE ) {
+            return 'unknown';
+        }
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Used to detect calling context safely, no output or logging occurs
         $backtrace = debug_backtrace();
         if(isset($backtrace[0]['file']))
         {
@@ -407,21 +489,26 @@ if (!function_exists('wpbay_sdk_nonce_field'))
 }
 if (!function_exists('wpbay_sdk_check_admin_referer')) 
 {
-    function wpbay_sdk_check_admin_referer($action, $name = '_wpnonce', $secret_key = 'wpbay_sdk_secret_key') 
+    function wpbay_sdk_check_admin_referer( $action, $name = '_wpnonce', $secret_key = 'wpbay_sdk_secret_key' ) 
     {
-        $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
-        $current_host = $_SERVER['HTTP_HOST'];
-        if (empty($referer) || strpos($referer, $current_host) === false) 
-        {
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Referer and host are validated and sanitized immediately after
+        $referer = isset( $_SERVER['HTTP_REFERER'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) : '';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Host is only used for comparison, not output
+        $current_host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+
+        if ( empty( $referer ) || strpos( $referer, $current_host ) === false ) {
             return false;
         }
-        $nonce = isset($_REQUEST[$name]) ? $_REQUEST[$name] : '';
-        if (empty($nonce)) 
-        {
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Custom nonce logic used safely
+        $nonce = isset( $_REQUEST[ $name ] ) ? sanitize_text_field( wp_unslash( $_REQUEST[ $name ] ) ) : '';
+        if ( empty( $nonce ) ) {
             return false;
         }
-        return wpbay_sdk_verify_nonce($nonce, $action, $secret_key);
+
+        return wpbay_sdk_verify_nonce( $nonce, $action, $secret_key );
     }
+
 }
 if(!function_exists('wpbay_sdk_remote_post'))
 {
@@ -433,55 +520,50 @@ if(!function_exists('wpbay_sdk_remote_post'))
             'timeout'    => 30,
             'user-agent' => 'WPBay-HTTP-Client/1.0',
             'sslverify'  => false,
-            'sslverifyhost'  => false,
         );
-        $args = array_merge($defaults, $args);
-        $ch = curl_init();
-        if($ch === false)
-        {
+        $args = wp_parse_args($args, $defaults);
+        $request_args = array(
+            'method'      => 'POST',
+            'body'        => $args['body'], 
+            'headers'     => $args['headers'],
+            'timeout'     => $args['timeout'],
+            'sslverify'   => $args['sslverify'],
+            'user-agent'  => $args['user-agent'],
+        );
+        $response = wp_remote_post($url, $request_args);
+        if (is_wp_error($response)) {
+            $error_message = $response->get_error_message();
             return array(
                 'body'     => false,
                 'response' => array(
-                    'code' => 999,
-                    'message' => 'Failed to init curl'
+                    'code'    => 0,
+                    'message' => $error_message
                 ),
-                'error'    => 'Failed to init curl',
+                'error'    => $error_message,
             );
         }
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); 
-        curl_setopt($ch, CURLOPT_TIMEOUT, $args['timeout']); 
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $args['sslverify']); 
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $args['sslverifyhost']); 
-        if (!empty($args['body'])) 
-        {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($args['body']));
+    
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code >= 400) {
+            return array(
+                'body'     => wp_remote_retrieve_body($response),
+                'response' => array(
+                    'code'    => $response_code,
+                    'message' => wp_remote_retrieve_response_message($response)
+                ),
+                'error'    => 'HTTP error ' . $response_code,
+            );
         }
-        if (!empty($args['headers'])) 
-        {
-            $formatted_headers = array();
-            foreach ($args['headers'] as $key => $value) 
-            {
-                $formatted_headers[] = "{$key}: {$value}";
-            }
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $formatted_headers);
-        }
-        if (!empty($args['user-agent'])) 
-        {
-            curl_setopt($ch, CURLOPT_USERAGENT, $args['user-agent']);
-        }
-        $response_body = curl_exec($ch);
-        $error = curl_error($ch);
-        $response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $response_body = wp_remote_retrieve_body($response);
+        $response_message = wp_remote_retrieve_response_message($response);
+    
         return array(
             'body'     => $response_body,
             'response' => array(
-                'code' => $response_code,
-                'message' => $error ? $error : 'OK'
+                'code'    => $response_code,
+                'message' => $response_message ? $response_message : 'OK'
             ),
-            'error'    => $error,
+            'error'    => false,
         );
     }
 }
@@ -556,17 +638,17 @@ if ( ! function_exists( 'wpbay_sdk_get_raw_referer' ) )
 {
     function wpbay_sdk_get_raw_referer() 
     {
-        if ( function_exists( 'wp_get_raw_referer' ) ) 
-        {
+        if ( function_exists( 'wp_get_raw_referer' ) ) {
             return wp_get_raw_referer();
         }
-        if ( ! empty( $_REQUEST['_wp_http_referer'] ) ) 
-        {
-            return wp_unslash( $_REQUEST['_wp_http_referer'] );
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only reading referer, not performing any sensitive action
+        if ( ! empty( $_REQUEST['_wp_http_referer'] ) ) {
+            return sanitize_text_field( wp_unslash( $_REQUEST['_wp_http_referer'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe: once again, only reading referer, no sensitive action
         } 
-        else if ( ! empty( $_SERVER['HTTP_REFERER'] ) ) 
-        {
-            return wp_unslash( $_SERVER['HTTP_REFERER'] );
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only reading referer, not performing any sensitive action
+        else if ( ! empty( $_SERVER['HTTP_REFERER'] ) ) {
+            return sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ) );
         }
 
         return false;
@@ -580,12 +662,20 @@ if(!function_exists( 'wpbay_sdk_get_current_page'))
         $return_page = '';
         if ( empty( $pagenow ) && is_admin() && is_multisite() ) 
         {
+            if(isset($_SERVER['PHP_SELF']))
+            {
+                $php_self = sanitize_text_field(wp_unslash($_SERVER['PHP_SELF']));
+            }
+            else
+            {
+                $php_self = '';
+            }
             if ( is_network_admin() ) {
-                preg_match( '#/wp-admin/network/?(.*?)$#i', $_SERVER['PHP_SELF'], $self_matches );
+                preg_match( '#/wp-admin/network/?(.*?)$#i', $php_self, $self_matches );
             } else if ( is_user_admin() ) {
-                preg_match( '#/wp-admin/user/?(.*?)$#i', $_SERVER['PHP_SELF'], $self_matches );
+                preg_match( '#/wp-admin/user/?(.*?)$#i', $php_self, $self_matches );
             } else {
-                preg_match( '#/wp-admin/?(.*?)$#i', $_SERVER['PHP_SELF'], $self_matches );
+                preg_match( '#/wp-admin/?(.*?)$#i', $php_self, $self_matches );
             }
 
             $pagenow = $self_matches[1];
@@ -833,6 +923,10 @@ if ( ! function_exists( 'wpbay_sdk_kses_no_null' ) )
 }
 if ( ! function_exists( 'wpbay_sdk_newest_sdk_plugin_first' ) ) 
 {
+    /**
+     * Reorders the plugin load order to ensure the latest WPBay SDK plugin is loaded first.
+     * Does not activate or deactivate plugins - only affects the array order for execution priority.
+     */
     function wpbay_sdk_newest_sdk_plugin_first() {
         global $wpbay_sdk_active_plugins;
 
@@ -841,6 +935,8 @@ if ( ! function_exists( 'wpbay_sdk_newest_sdk_plugin_first' ) )
         {
             return false;
         }
+        // Note: This code reorders active_sitewide_plugins only to ensure the latest WPBay SDK version is loaded first.
+        // No plugins are activated or deactivated
         $active_plugins         = get_option( 'active_plugins', array() );
         $updated_active_plugins = array( $newest_sdk_plugin_path );
 
@@ -862,11 +958,14 @@ if ( ! function_exists( 'wpbay_sdk_newest_sdk_plugin_first' ) )
         }
 
         if ( $plugin_found ) {
+            // Reorder only. No plugin is activated or deactivated.
             update_option( 'active_plugins', $updated_active_plugins, false );
             return true;
         }
 
         if ( is_multisite() ) {
+            // Note: This code reorders active_sitewide_plugins only to ensure the latest WPBay SDK version is loaded first.
+            // No plugins are activated or deactivated
             $network_active_plugins = get_site_option( 'active_sitewide_plugins', array() );
 
             if ( isset( $network_active_plugins[ $newest_sdk_plugin_path ] ) ) {
@@ -879,7 +978,7 @@ if ( ! function_exists( 'wpbay_sdk_newest_sdk_plugin_first' ) )
                     unset( $network_active_plugins[ $newest_sdk_plugin_path ] );
 
                     $network_active_plugins = array( $newest_sdk_plugin_path => $time ) + $network_active_plugins;
-
+                    // Reorder only. No plugin is activated or deactivated.
                     update_site_option( 'active_sitewide_plugins', $network_active_plugins );
                     return true;
                 }

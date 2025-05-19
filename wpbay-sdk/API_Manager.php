@@ -60,9 +60,8 @@ class API_Manager {
             'timeout'       => 90,
             'user-agent'    => 'WPBay-HTTP-Client/1.0',
             'sslverify'     => false,
-            'sslverifyhost' => false,
+            'redirection'   => 5
         );
-        
         $args = array_merge($defaults, $args);
         if($no_cache !== true)
         {
@@ -84,85 +83,55 @@ class API_Manager {
                 'error'    => 'API rate limit exceeded',
             );
         }
-
+        $request_args = array(
+            'method'      => 'POST',
+            'timeout'     => $args['timeout'],
+            'sslverify'   => $args['sslverify'],
+            'headers'     => $args['headers'],
+            'body'        => $args['body'], 
+            'user-agent'  => $args['user-agent'],
+            'redirection' => $args['redirection'] ?? 5,
+        );
         $attempt = 0;
         do 
         {
-            $ch = curl_init();
-            if($ch === false)
-            {
-                return array(
-                    'body'     => false,
-                    'response' => array(
-                        'code'    => 999,
-                        'message' => 'Failed to init curl'
-                    ),
-                    'error'    => 'Failed to init curl',
-                );
-            }
-            curl_setopt($ch, CURLOPT_URL, $url);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, $args['timeout']);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $args['sslverify']);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $args['sslverifyhost']);
-            if (!empty($args['body']))
-            {
-                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($args['body']));
-            }
-            if (!empty($args['headers']))
-            {
-                $formatted_headers = array();
-                foreach ($args['headers'] as $key => $value)
-                {
-                    $formatted_headers[] = "{$key}: {$value}";
+            $response = wp_remote_post($url, $request_args);
+            if (is_wp_error($response)) {
+                $error_message = $response->get_error_message();
+                if ($this->debug_mode === true) {
+                    wpbay_log_to_file('Failed to execute wp_remote_post in API request: ' . $error_message);
                 }
-                curl_setopt($ch, CURLOPT_HTTPHEADER, $formatted_headers);
-            }
-            if (!empty($args['user-agent']))
-            {
-                curl_setopt($ch, CURLOPT_USERAGENT, $args['user-agent']);
-            }
-            $response_body = curl_exec($ch);
-            $error = curl_error($ch);
-            $response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            if($response_body === false)
-            {
-                if($this->debug_mode === true)
-                {
-                    wpbay_log_to_file('Failed to execute curl in API request: ' . $error);
-                }
-            }
-            curl_close($ch);
-
-            if ($error) {
                 sleep($this->retry_delay);
             } else {
-                $response = array(
+                $response_code = wp_remote_retrieve_response_code($response);
+                $response_body = wp_remote_retrieve_body($response);
+                $response_message = wp_remote_retrieve_response_message($response);
+    
+                $result = array(
                     'body'     => $response_body,
                     'response' => array(
                         'code'    => $response_code,
-                        'message' => $error ? $error : 'OK'
+                        'message' => $response_message ? $response_message : 'OK'
                     ),
-                    'error'    => $error,
+                    'error'    => false,
                 );
-                if($no_cache !== true)
-                {
-                    set_transient($cache_key, $response, $this->cache_time);
+                if ($no_cache !== true) {
+                    set_transient($cache_key, $result, $this->cache_time);
                 }
+    
                 $this->update_rate_limit();
-                return $response;
+                return $result;
             }
             $attempt++;
         } while ($attempt < $this->retry_count);
 
         return array(
-            'body'     => $response_body,
+            'body'     => false,
             'response' => array(
-                'code'    => $response_code,
-                'message' => $error ? $error : 'OK'
+                'code'    => 0, 
+                'message' => $error_message ?? 'Request failed after retries'
             ),
-            'error'    => $error,
+            'error'    => $error_message ?? 'Request failed after retries',
         );
     }
 
@@ -174,9 +143,12 @@ class API_Manager {
             'timeout'       => 90,
             'user-agent'    => 'WPBay-HTTP-Client/1.0',
             'sslverify'     => false,
-            'sslverifyhost' => false,
+            'redirection'   => 5
         );
-        $args = array_merge($defaults, $args);
+        $args = wp_parse_args($args, $defaults);
+        if (!empty($args['body'])) {
+            $url .= '?' . http_build_query($args['body']);
+        }
         if($no_cache !== true)
         {
             $cache_key = 'wpbay_sdk_api_' . md5($url . serialize($args));
@@ -197,83 +169,54 @@ class API_Manager {
                 'error'    => 'API rate limit exceeded',
             );
         }
-
+        $request_args = array(
+            'method'      => 'GET', 
+            'timeout'     => $args['timeout'],
+            'sslverify'   => $args['sslverify'],
+            'headers'     => $args['headers'],
+            'user-agent'  => $args['user-agent'],
+            'redirection' => $args['redirection'] ?? 5,
+        );
         $attempt = 0;
-        do {
-            $ch = curl_init();
-            if($ch === false)
-            {
-                return array(
-                    'body'     => false,
-                    'response' => array(
-                        'code'    => 999,
-                        'message' => 'Failed to init curl'
-                    ),
-                    'error'    => 'Failed to init curl',
-                );
-            }
-            if (!empty($args['body'])) {
-                $url .= '?' . http_build_query($args['body']);
-            }
-            curl_setopt($ch, CURLOPT_URL, $url);
-            curl_setopt($ch, CURLOPT_HTTPGET, true);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, $args['timeout']);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $args['sslverify']);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $args['sslverifyhost']);
-            if (!empty($args['headers']))
-            {
-                $formatted_headers = array();
-                foreach ($args['headers'] as $key => $value)
-                {
-                    $formatted_headers[] = "{$key}: {$value}";
+        do 
+        {
+            $response = wp_remote_get($url, $request_args);
+            if (is_wp_error($response)) {
+                $error_message = $response->get_error_message();
+                if ($this->debug_mode === true) {
+                    wpbay_log_to_file('Failed to execute wp_remote_get in API request: ' . $error_message);
                 }
-                curl_setopt($ch, CURLOPT_HTTPHEADER, $formatted_headers);
-            }
-            if (!empty($args['user-agent']))
-            {
-                curl_setopt($ch, CURLOPT_USERAGENT, $args['user-agent']);
-            }
-            $response_body = curl_exec($ch);
-            $error = curl_error($ch);
-            $response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            if($response_body === false)
-            {
-                if($this->debug_mode === true)
-                {
-                    wpbay_log_to_file('Failed to execute curl in API request: ' . $error);
-                }
-            }
-            curl_close($ch);
-
-            if ($error) {
                 sleep($this->retry_delay);
             } else {
-                $response = array(
+                $response_code = wp_remote_retrieve_response_code($response);
+                $response_body = wp_remote_retrieve_body($response);
+                $response_message = wp_remote_retrieve_response_message($response);
+    
+                $result = array(
                     'body'     => $response_body,
                     'response' => array(
                         'code'    => $response_code,
-                        'message' => $error ? $error : 'OK'
+                        'message' => $response_message ? $response_message : 'OK'
                     ),
-                    'error'    => $error,
+                    'error'    => false,
                 );
-                if($no_cache !== true)
-                {
-                    set_transient($cache_key, $response, $this->cache_time);
+                if ($no_cache !== true) {
+                    set_transient($cache_key, $result, $this->cache_time);
                 }
+    
                 $this->update_rate_limit();
-                return $response;
+                return $result;
             }
             $attempt++;
         } while ($attempt < $this->retry_count);
 
         return array(
-            'body'     => $response_body,
+            'body'     => false,
             'response' => array(
-                'code'    => $response_code,
-                'message' => $error ? $error : 'OK'
+                'code'    => 0, 
+                'message' => $error_message ?? 'Request failed after retries'
             ),
-            'error'    => $error,
+            'error'    => $error_message ?? 'Request failed after retries',
         );
     }
 

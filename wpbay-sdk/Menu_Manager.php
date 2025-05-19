@@ -170,7 +170,7 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
             $link_url = $this->get_activation_url();
             if(!empty($link_url) && $link_url != '#')
             {
-                $link_text = esc_html__('Activate License', 'wpbay-sdk');
+                $link_text = esc_html(wpbay_get_text_inline('Activate License', 'wpbay-sdk'));
                 $link_text = apply_filters( 'wpbay_sdk_menu_activate_license', $link_text );
                 $link_text = esc_html($link_text);
                 $this->add_plugin_action_link(
@@ -478,6 +478,7 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
         public function wpbay_sdk_activation_page_render() 
         {
             $args = array('is_free' => $this->is_free, 'purchase_code' => $this->license_manager->get_purchase_code(), 'product_slug' => $this->product_slug);
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the activate.php template contains safe escaped and safe code.
             echo wpbay_sdk_apply_filters( 'wpbay_sdk_activation_page', wpbay_sdk_get_template( 'activate.php', $args ), $this->product_slug );
         }
 
@@ -709,7 +710,7 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
             }
             if (!$this->disable_contact_form && $this->contact_form_manager !== null) 
             {
-                $content_text = esc_html__('Contact', 'wpbay-sdk');
+                $content_text = esc_html(wpbay_get_text_inline('Contact', 'wpbay-sdk'));
                 $content_text = apply_filters( 'wpbay_sdk_menu_contact', $content_text );
                 $content_text = esc_html($content_text);
                 wpbay_sdk_add_page_submenu(
@@ -723,7 +724,7 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
             }
             if (!$this->disable_support_page && $this->uploaded_to_wp_org) 
             {
-                $support_text = esc_html__('Support', 'wpbay-sdk');
+                $support_text = esc_html(wpbay_get_text_inline('Support', 'wpbay-sdk'));
                 $support_text = apply_filters( 'wpbay_sdk_menu_support', $support_text );
                 $support_text = esc_html($support_text);
                 wpbay_sdk_add_page_submenu(
@@ -737,12 +738,14 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
             }
             if ($this->disable_upgrade_form !== true && $this->is_free && $this->is_upgradable && !empty($this->product_id) && !empty($this->api_key) && $this->purchase_manager !== null) 
             {
+                global $wpbay_sdk_version;
                 wp_enqueue_style(
                     'wpbay-purchase-manager-style',
                     plugin_dir_url( __FILE__ ) . 'styles/purchase.css',
-                    array()
+                    array(),
+                    $wpbay_sdk_version
                 );
-                $upgrade_text = esc_html__('Upgrade', 'wpbay-sdk');
+                $upgrade_text = esc_html(wpbay_get_text_inline('Upgrade', 'wpbay-sdk'));
                 $upgrade_text = apply_filters( 'wpbay_sdk_menu_upgrade', $upgrade_text );
                 $upgrade_text = esc_html($upgrade_text);
                 wpbay_sdk_add_page_submenu(
@@ -765,10 +768,9 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
         {
             echo '<div class="wrap">';
             echo '<h1>' . esc_html($this->menu_data['page_title']) . '</h1>';
-            $welcome_text = esc_html__('Welcome to the main settings page of', 'wpbay-sdk');
+            $welcome_text = esc_html(wpbay_get_text_inline('Welcome to the main settings page of', 'wpbay-sdk'));
             $welcome_text = apply_filters( 'wpbay_sdk_menu_contact', $welcome_text );
-            $welcome_text = esc_html($welcome_text);
-            echo '<p>' . $welcome_text . '&nbsp;<b>' . esc_html($this->menu_data['page_title']). '</b></p>';
+            echo '<p>' . esc_html($welcome_text) . '&nbsp;<b>' . esc_html($this->menu_data['page_title']). '</b></p>';
             echo '</div>';
         }
 

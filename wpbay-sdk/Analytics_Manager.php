@@ -14,6 +14,8 @@ class Analytics_Manager
     private $license_manager;
     private $notice_manager;
     private $type; // 'plugin' or 'theme'
+    // API endpoint used to submit optional, anonymized analytics data to WPBay.com.
+    // See WPBay_Loader.php or the SDK readme file for full disclosure of what is sent and when.
     private $api_endpoint = 'https://wpbay.com/api/analytics/v1/submit';
     private $opted_in;
     private $consent_shown;
@@ -171,24 +173,27 @@ class Analytics_Manager
 
     public function show_opt_in_notice() 
     {
-        $notice_content = '<p><b>' . esc_html( $this->product_slug ) . ':</b> ' . esc_html__( 'We would like to collect anonymous usage data to help improve this product. No personal information will be collected.', 'wpbay-sdk' ) . '</p>
-<p><button class="button button-primary" onclick="location.href=\'' . esc_url( add_query_arg( array( 'wpbay_sdk_analytics_opt_in' => 'yes', 'wpbay_slug' => $this->product_slug ) ) ) . '\'">' . esc_html__( 'Allow', 'wpbay-sdk' ) . '</button>
-<button class="button" onclick="location.href=\'' . esc_url( add_query_arg( array( 'wpbay_sdk_analytics_opt_in' => 'no', 'wpbay_slug' => $this->product_slug ) ) ) . '\'">' . esc_html__( 'No, thanks', 'wpbay-sdk' ) . '</button>
+        $nonce = wp_create_nonce( 'wpbay_sdk_opt_in_' . $this->product_slug );
+        $notice_content = '<p><b>' . esc_html( $this->product_slug ) . ':</b> ' . esc_html(wpbay_get_text_inline( 'We would like to collect anonymous usage data to help improve this product. No personal information will be collected.', 'wpbay-sdk' )) . '</p>
+<p><button class="button button-primary" onclick="location.href=\'' . esc_url( add_query_arg( array( 'wpbay_sdk_analytics_opt_in' => 'yes', 'wpbay_slug' => $this->product_slug, '_wpnonce' => $nonce ) ) ) . '\'">' . esc_html(wpbay_get_text_inline( 'Allow', 'wpbay-sdk' )) . '</button>
+<button class="button" onclick="location.href=\'' . esc_url( add_query_arg( array( 'wpbay_sdk_analytics_opt_in' => 'no', 'wpbay_slug' => $this->product_slug, '_wpnonce' => $nonce ) ) ) . '\'">' . esc_html(wpbay_get_text_inline( 'No, thanks', 'wpbay-sdk' )) . '</button>
 </p>';
         $this->notice_manager->add_notice($notice_content, 'info');
     }
 
     public function handle_opt_in_response() 
     {
-        if ( isset( $_GET['wpbay_sdk_analytics_opt_in'] ) && isset( $_GET['wpbay_slug'] ) && $_GET['wpbay_slug'] === $this->product_slug ) {
-            $opt_in_choice = sanitize_text_field( $_GET['wpbay_sdk_analytics_opt_in'] );
+        if ( isset( $_GET['_wpnonce'] ) && isset( $_GET['wpbay_sdk_analytics_opt_in'] ) && isset( $_GET['wpbay_slug'] ) && $_GET['wpbay_slug'] === $this->product_slug && 
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce is verified via wp_verify_nonce()
+        wp_verify_nonce( (string) wp_unslash($_GET['_wpnonce']), 'wpbay_sdk_opt_in_' . $this->product_slug ) ) {
+            $opt_in_choice = sanitize_text_field( wp_unslash($_GET['wpbay_sdk_analytics_opt_in']) );
             if ( 'yes' === $opt_in_choice ) {
                 $this->opt_in();
             } else {
                 $this->opt_out();
             }
             update_option( "wpbay_sdk_{$this->product_slug}_analytics_consent_shown", '1' );
-            wp_redirect( remove_query_arg( array( 'wpbay_sdk_analytics_opt_in', 'wpbay_slug' ) ) );
+            wp_redirect( remove_query_arg( array( 'wpbay_sdk_analytics_opt_in', 'wpbay_slug', '_wpnonce' ) ) );
             exit;
         }
     }

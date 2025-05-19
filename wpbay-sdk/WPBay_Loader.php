@@ -1,10 +1,55 @@
 <?php
 /**
  * @package     WPBay
- * @copyright   Copyright (c) 2024, WPBay
+ * @copyright   Copyright (c) 2025, WPBay
  * @license     https://www.gnu.org/licenses/gpl-3.0.html GNU General Public License Version 3
  * @since       1.0.0
+ *
+ * This SDK integrates with external services provided by WPBay.com for license management,
+ * optional analytics, and feedback submission. All usage is documented in the SDK's readme.md.
+ *
+ * == External Services Used ==
+ *
+ * 1. License Management
+ *    - Endpoint: https://wpbay.com/api/purchase/v1/verify
+ *    - Purpose: Verifies and activates purchase codes.
+ *    - Data Sent:
+ *        - Purchase code
+ *        - Site URL (via get_bloginfo('url'))
+ *        - API key and secret key
+ *        - Developer mode flag
+ *        - Product slug & ID
+ *        - Cache busting token
+ *    - Triggered: on activation, daily cron, or manual license validation.
+ *
+ * 2. Analytics Tracking (Optional / Opt-in)
+ *    - Endpoint: https://wpbay.com/api/analytics/v1/submit
+ *    - Purpose: Collects anonymized usage data to help developers improve their products.
+ *    - Data Sent:
+ *        - Product slug and version
+ *        - Site locale
+ *        - Activation timestamp
+ *        - Plan and license type (if available)
+ *        - Context (plugin or theme)
+ *    - Triggered: on activation or update, if analytics is enabled.
+ *
+ * 3. Feedback Submission (Optional)
+ *    - Endpoint: https://wpbay.com/api/feedback/v1/
+ *    - Purpose: Allows users to send support messages, bug reports, or feature requests.
+ *    - Data Sent:
+ *        - Name and email (if submitted)
+ *        - Request type
+ *        - Message content
+ *        - Product slug and site URL
+ *    - Triggered: when the user submits the feedback form.
+ *
+ * == Privacy & Compliance ==
+ * Terms: https://wpbay.com/terms-and-conditions/
+ * Privacy: https://wpbay.com/privacy-policy/
+ *
+ * Note: No personal information is sent without user consent. Analytics and feedback features are disabled by default and can be turned off using SDK parameters.
  */
+
 namespace WPBaySDK;
 
 global $wpbay_sdk_active_plugins;
@@ -32,15 +77,17 @@ if (
     version_compare( $wp_version, '6.3', '>=' ) &&
     version_compare( $wp_version, '6.3.1', '<=' ) &&
     (
-        'site-editor.php' === basename( $_SERVER['SCRIPT_FILENAME'] ) ||
+        isset($_SERVER['SCRIPT_FILENAME']) && 'site-editor.php' === basename( sanitize_text_field(wp_unslash($_SERVER['SCRIPT_FILENAME'])) ) ||
         (
             function_exists( 'wp_is_json_request' ) &&
             wp_is_json_request() &&
-            ! empty( $_GET['wp_theme_preview'] )
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.NonceVerification.Recommended -- Only checking existence of $_GET key, no trust or action taken
+            isset($_GET['wp_theme_preview']) && ! empty( $_GET['wp_theme_preview'] ) 
         )
     )
 ) 
 {
+    // phpcs:ignore WordPress.Files.FileInclude.FileInclude — This include is conditional and only used to prevent errors on early execution. Reason: Ensures access to pluggable functions like wp_get_current_user() in rare edge cases (e.g., WP < 3.0 theme previews).
     require_once ABSPATH . 'wp-includes/pluggable.php';
 }
 
@@ -127,10 +174,10 @@ elseif ( version_compare( $wpbay_sdk_active_plugins->newest->version, $wpbay_sdk
                 {
                     $last_redirect = get_transient('wpbay_sdk_redirect_timestamp');
                     $current_time = time();
-                    if (!$last_redirect || ($current_time - $last_redirect > 10)) 
+                    if (isset($_SERVER['REQUEST_URI']) && (!$last_redirect || ($current_time - $last_redirect > 10))) 
                     {
                         set_transient('wpbay_sdk_redirect_timestamp', $current_time, 10);
-                        wpbay_sdk_redirect( $_SERVER['REQUEST_URI'] );
+                        wpbay_sdk_redirect( sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) );
                     }
                 }
             }
@@ -215,10 +262,10 @@ else
                     {
                         $last_redirect = get_transient('wpbay_sdk_redirect_timestamp');
                         $current_time = time();
-                        if (!$last_redirect || ($current_time - $last_redirect > 10)) 
+                        if (isset($_SERVER['REQUEST_URI']) && (!$last_redirect || ($current_time - $last_redirect > 10))) 
                         {
                             set_transient('wpbay_sdk_redirect_timestamp', $current_time, 10);
-                            wpbay_sdk_redirect( $_SERVER['REQUEST_URI'] );
+                            wpbay_sdk_redirect( sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) );
                         }
                     }
                 }

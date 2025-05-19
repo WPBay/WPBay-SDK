@@ -8,8 +8,11 @@ if (! defined('ABSPATH'))
 
 if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) ) 
 {
+    global $wpbay_text_overrides;
+    $wpbay_text_overrides = array();
     class WPBay_SDK 
     {
+        protected $_slug = 'wpbay-sdk';
         private static $instances = array();
         private static $registered_hooks = array();
         private static $admin_menu_added = false;
@@ -45,7 +48,10 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
         private $product_file = __FILE__;
         private $activation_redirect = false;
         private $product_type = 'plugin';
+        // Base URL for WPBay. For details, see WPBay_Loader.php or the SDK readme file.
         private $wpbay_sdk_url = 'https://wpbay.com/';
+        // License API endpoint used for communicating with WPBay.com.
+        // See WPBay_Loader.php or the SDK readme file for full data disclosure.
         private $api_endpoint = 'https://wpbay.com/api/purchase/v1/';
 
         private $is_free = false;
@@ -71,8 +77,17 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             }
             else
             {
-                $this->product_type = strpos( wpbay_sdk_normalize_path(__FILE__), wpbay_sdk_normalize_path(get_theme_root()) ) !== false ? 'theme' :
-                ( strpos( wpbay_sdk_normalize_path(__FILE__), wpbay_sdk_normalize_path(WP_PLUGIN_DIR) ) !== false ? 'plugin' : 'unknown' );
+                $normalized_file = wpbay_sdk_normalize_path( __FILE__ );
+                $theme_root      = wpbay_sdk_normalize_path( get_theme_root() );
+                $plugin_root     = wpbay_sdk_normalize_path( dirname( plugin_dir_path( __FILE__ ) ) );
+
+                if ( strpos( $normalized_file, $theme_root ) !== false ) {
+                    $this->product_type = 'theme';
+                } elseif ( strpos( $normalized_file, $plugin_root ) !== false ) {
+                    $this->product_type = 'plugin';
+                } else {
+                    $this->product_type = 'unknown';
+                }
             }
             if(isset($args['product_file']))
             {
@@ -156,6 +171,17 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             }
             $this->initialize($args);
         }
+        public function get_text_inline( $text, $key = '' ) {
+            return wpbay_get_text_inline( $text, $this->_slug, $key );
+        }
+
+        public function esc_html_get_text_inline( $text, $key = '' ) {
+            return wpbay_esc_html_get_text_inline( $text, $this->_slug, $key );
+        }
+
+        public function override_i18n( $key_value ) {
+            wpbay_override_i18n( $key_value, $this->_slug );
+        }
         public static function get_instance($args, $product_slug, $this_sdk_version) 
         {
             if (!isset(self::$instances[ $product_slug ])) 
@@ -177,8 +203,15 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             $relative_path = str_replace(trailingslashit($theme_root), '', $this->product_file);
             return $relative_path; 
         }
+        public function enqueue_scripts( ) 
+        {
+            wp_enqueue_script( 'jquery' );
+            wp_enqueue_script( 'jquery-ui-dialog' );
+            wp_enqueue_style( 'wp-jquery-ui-dialog' );
+        }
         private function initialize($args) 
         {
+            add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
             $this->define_constants();
             $this->define_globals();
             $this->includes();
@@ -203,9 +236,12 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
                 $this->api_manager, 
                 $this->debug_mode
             );
+            // Initialize the custom update manager only if the product is not distributed via WordPress.org.
+            // WordPress.org-hosted plugins must use WordPress's native update system and are not allowed to override it.
+            // This check ensures compliance with WordPress.org guidelines by disabling external update checks when hosted on .org.
             if (!$this->uploaded_to_wp_org) 
             {
-                $this->update_manager    = Update_Manager::get_instance( $this->wpbay_product_id, $this->product_slug, $this->product_file, $this->api_manager, $this->license_manager, $this->notice_manager, $this->product_type, $this->is_free, $this->debug_mode );
+                $this->update_manager    = Update_Manager::get_instance( $this->wpbay_product_id, $this->product_slug, $this->product_file, $this->api_manager, $this->license_manager, $this->notice_manager, $this->product_type, $this->is_free, $this->debug_mode, $this->uploaded_to_wp_org );
             }
             if (!$this->disable_feedback && !empty($this->wpbay_product_id) && !empty($this->api_key)) 
             {
@@ -238,7 +274,10 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
                     if($target_timestamp < time() && $this->license_manager->get_rating_shown() === false)
                     {
                         $this->license_manager->set_rating_shown($this->product_slug);
-                        $notice_content = sprintf( wp_kses( __( 'Hey, I noticed you are using the %s %s for some time now - that\'s really awesome! Could you please do a favor and give it <b><a href=\'%s\' target=\'_blank\'>a 5-star rating</a></b>? Just to help us spread the word and boost our motivation. Thank you!', 'wpbay-sdk'), array(  'b' => array(), 'a' => array( 'href' => array(), 'target' => array() ) ) ), $this->product_slug, $this->product_type, esc_url_raw($this->wpbay_sdk_url . '?post_type=product&p=' . $this->wpbay_product_id . '#reviews') );
+                        $notice_content = sprintf( wp_kses( 
+                            // translators: %1$s: Product slug, %2$s: Product type, %3$s: Review URL
+                            wpbay_get_text_inline( 'Hey, I noticed you are using the %1$s %2$s for some time now - that\'s really awesome! Could you please do a favor and give it <b><a href=\'%3$s\' target=\'_blank\'>a 5-star rating</a></b>? Just to help us spread the word and boost our motivation. Thank you!', 'wpbay-sdk'), 
+                            array(  'b' => array(), 'a' => array( 'href' => array(), 'target' => array() ) ) ), $this->product_slug, $this->product_type, esc_url_raw($this->wpbay_sdk_url . '?post_type=product&p=' . $this->wpbay_product_id . '#reviews') );
                         $notice_content = apply_filters( 'wpbay_sdk_updates_check_message', $notice_content );
                         $this->notice_manager->add_notice($notice_content, 'success');
                     }
@@ -249,14 +288,15 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             {
                 $modes = array();
                 if ($this->is_developer_mode() === true) {
-                    $modes[] = esc_html__('Developer Mode', 'wpbay-sdk');
+                    $modes[] = esc_html(wpbay_get_text_inline('Developer Mode', 'wpbay-sdk'));
                 }
                 if ($this->is_debug_mode() === true) {
-                    $modes[] = esc_html__('Debug Mode', 'wpbay-sdk');
+                    $modes[] = esc_html(wpbay_get_text_inline('Debug Mode', 'wpbay-sdk'));
                 }
                 $modes_list = implode(' & ', $modes);
                 $notice_content = sprintf(
-                    esc_html__('WPBay SDK (%s) is currently running in %s. Don\'t forget to disable this before you go live!', 'wpbay-sdk'),
+                    // translators: %1$s: Product slug, %2$s: Mode (e.g., debug, test, etc.)
+                    esc_html(wpbay_get_text_inline('WPBay SDK (%1$s) is currently running in %2$s. Don\'t forget to disable this before you go live!', 'wpbay-sdk')),
                     $this->product_slug,
                     $modes_list
                 );
@@ -268,14 +308,14 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
         //helpful functions below
         function is_localhost_by_address() 
         {
-            $url = 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+            $url = home_url(isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '');
             if ( false !== strpos( $url, '127.0.0.1' ) || false !== strpos( $url, 'localhost' ) ) {
                 return true;
             }
             if ( ! wpbay_sdk_startsWith( $url, 'http' ) ) {
                 $url = 'http://' . $url;
             }
-            $url_parts = parse_url( $url );
+            $url_parts = wp_parse_url( $url );
             $subdomain = $url_parts['host'];
             return (
                 wpbay_sdk_startsWith( $subdomain, 'local.' ) ||
@@ -408,7 +448,8 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             if ( $this->is_product_activation() ) 
             {
                 delete_transient( 'wpbay_sdk_'  . $this->product_type . '_' . $this->product_slug . '_activated' );
-                if (!isset($_GET['activate-multi']))
+                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.NonceVerification.Recommended -- Only checking existence of $_GET key, no trust or action taken
+                if (! isset($_GET['activate-multi']))
                 {
                     if(!empty($this->activation_redirect) && is_string($this->activation_redirect))
                     {
@@ -429,8 +470,8 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
                 return;
             }
             add_management_page(
-                esc_html__('WPBay Developer Mode', 'wpbay-sdk'),
-                esc_html__('WPBay Developer Mode', 'wpbay-sdk'),
+                esc_html(wpbay_get_text_inline('WPBay Developer Mode', 'wpbay-sdk')),
+                esc_html(wpbay_get_text_inline('WPBay Developer Mode', 'wpbay-sdk')),
                 'manage_options',
                 'wpbay-settings',
                 array($this, 'settings_page')
@@ -441,7 +482,7 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
         {
             ?>
             <div class="wrap">
-                <h1><?php esc_html_e('WPBay Settings', 'wpbay-sdk'); ?></h1>
+                <h1><?php echo esc_html(wpbay_get_text_inline('WPBay Settings', 'wpbay-sdk')); ?></h1>
                 <?php settings_errors(); ?>
                 <form method="post" action="options.php">
                     <?php
@@ -453,8 +494,12 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
         }
         public function dismiss_notice() 
         {
+            if(!current_user_can( 'edit_posts' ))
+            {
+                return;
+            }
             check_ajax_referer('wpbay_sdk_dismiss_notice', 'nonce');
-            $notice = isset($_POST['notice']) ? sanitize_text_field($_POST['notice']) : '';
+            $notice = isset($_POST['notice']) ? sanitize_text_field(wp_unslash($_POST['notice'])) : '';
             if ($notice) {
                 update_option('wpbay_sdk_dismissed_notice_' . $notice, true, false);
             }
@@ -467,8 +512,8 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
                 return;
             }
             wpbay_sdk_add_page_menu(
-                esc_html__('WPBay Network Developer Mode', 'wpbay-sdk'),
-                esc_html__('WPBay Network Developer Mode', 'wpbay-sdk'),
+                esc_html(wpbay_get_text_inline('WPBay Network Developer Mode', 'wpbay-sdk')),
+                esc_html(wpbay_get_text_inline('WPBay Network Developer Mode', 'wpbay-sdk')),
                 'manage_network_options',
                 'wpbay-network-settings',
                 array($this, 'network_settings_page')
@@ -479,7 +524,7 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
         {
             ?>
             <div class="wrap">
-                <h1><?php esc_html_e('WPBay Network Settings', 'wpbay-sdk'); ?></h1>
+                <h1><?php echo esc_html(wpbay_get_text_inline('WPBay Network Settings', 'wpbay-sdk')); ?></h1>
                 <form method="post" action="edit.php?action=wpbay_sdk_network_settings">
                     <?php
                     do_settings_sections('wpbay-network-settings');
@@ -586,39 +631,61 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             add_action('wp_ajax_wpbay_sdk_dismiss_notice' . sanitize_title($this->product_slug), array($this, 'dismiss_notice'));
             if($this->is_plugin()) 
             {
-                if (!$this->is_free) 
+                // WordPress.org plugins are not allowed to act on theme activation/deactivation directly.
+                // These hooks are only used for license tracking or optional analytics and are disabled for .org compliance.
+                // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                if ( !$this->uploaded_to_wp_org ) 
                 {
-                    add_action('activate_' . $this->product_basename, array($this->license_manager, 'activate'));
-                    add_action('deactivate_' . $this->product_basename, array($this->license_manager, 'deactivate'));
+                    if (!$this->is_free) 
+                    {
+                        // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                        add_action('activate_' . $this->product_basename, array($this->license_manager, 'activate'));
+                        // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                        add_action('deactivate_' . $this->product_basename, array($this->license_manager, 'deactivate'));
+                    }
+                    // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                    add_action('activate_' . $this->product_basename, array($this, 'activate_product_event_hook'));
+                    
+                    if (!$this->disable_analytics && !empty($this->wpbay_product_id) && !empty($this->api_key) && !empty($this->product_slug)) 
+                    {
+                        // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                        add_action('activate_' . $this->product_basename, array( $this->analytics_manager, 'track_activation' ));
+                        // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                        add_action('deactivate_' . $this->product_basename, array( $this->analytics_manager, 'track_deactivation' ));
+                    }
                 }
-
-                add_action('activate_' . $this->product_basename, array($this, 'activate_product_event_hook'));
                 
-                if (!$this->disable_analytics && !empty($this->wpbay_product_id) && !empty($this->api_key) && !empty($this->product_slug)) 
-                {
-                    add_action('activate_' . $this->product_basename, array( $this->analytics_manager, 'track_activation' ));
-                    add_action('deactivate_' . $this->product_basename, array( $this->analytics_manager, 'track_deactivation' ));
-                }
             } 
             elseif($this->is_theme())
             {
-                if (!$this->is_free) 
+                // WordPress.org plugins are not allowed to act on theme activation/deactivation directly.
+                // These hooks are only used for license tracking or optional analytics and are disabled for .org compliance.
+                // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                if ( !$this->uploaded_to_wp_org ) 
                 {
-                    add_action('after_switch_theme', array($this->license_manager, 'activate'));
-                    add_action('switch_theme', array($this->license_manager, 'deactivate'));
-                }
+                    if (!$this->is_free) 
+                    {
+                        // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                        add_action('after_switch_theme', array($this->license_manager, 'activate'));
+                        // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                        add_action('switch_theme', array($this->license_manager, 'deactivate'));
+                    }
+                    // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                    add_action('after_switch_theme', array($this, 'activate_product_event_hook'));
 
-                add_action('after_switch_theme', array($this, 'activate_product_event_hook'));
-
-                if (!$this->disable_analytics && !empty($this->wpbay_product_id) && !empty($this->api_key) && !empty($this->product_slug)) 
-                {
-                    add_action('after_switch_theme', array( $this->analytics_manager, 'track_activation' ));
-                    add_action('switch_theme', array( $this->analytics_manager, 'track_deactivation' ));
+                    if (!$this->disable_analytics && !empty($this->wpbay_product_id) && !empty($this->api_key) && !empty($this->product_slug)) 
+                    {
+                        // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                        add_action('after_switch_theme', array( $this->analytics_manager, 'track_activation' ));
+                        // Disable these hooks when the SDK is used in a WordPress.org-hosted plugin
+                        add_action('switch_theme', array( $this->analytics_manager, 'track_deactivation' ));
+                    }
                 }
             }
 
             if (!$this->disable_analytics && !empty($this->wpbay_product_id) && !empty($this->api_key) && !empty($this->product_slug)) 
             {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_set_error_handler -- Custom error handler used safely in production for analytics
                 set_error_handler(array($this->analytics_manager, 'handle_error'));
                 register_shutdown_function(array($this->analytics_manager, 'handle_shutdown'));
                 add_action('admin_init', array( $this->analytics_manager, 'handle_opt_in_response' ));
@@ -648,8 +715,13 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             return !empty($result);
         }
     }
-    add_action('init', function() {
-        load_plugin_textdomain('wpbay', false, basename(dirname(__FILE__)) . '/languages');
+    add_action('plugins_loaded', function() 
+    {
+        if(!is_admin())
+        {
+            return;
+        }
+        load_plugin_textdomain('wpbay-sdk', false, basename(dirname(__FILE__)) . '/languages');
     });
 }
 ?>

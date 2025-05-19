@@ -13,6 +13,8 @@ class License_Manager
     private $activation_time = false;
     private $rating_shown = false;
     private $plan_type = '';
+    // API endpoint used for license verification, activation, and revocation.
+    // See WPBay_Loader.php or the SDK readme file for full details and data disclosure.
     private $api_endpoint = 'https://wpbay.com/api/purchase/v1/';
     private $option_name  = 'wpbay_sdk_license_data';
     private $api_key      = '';
@@ -119,7 +121,7 @@ class License_Manager
                 'developer_mode'  => $this->developer_mode,
                 'secret_key'      => $this->secret_key,
                 'product_slug'    => $this->product_slug,
-                'cachebust'       => rand()
+                'cachebust'       => wp_rand()
             ),
         );
         $response = $this->api_manager->post_request( $api_url, $request_data );
@@ -127,7 +129,7 @@ class License_Manager
         {
             if($this->debug_mode === true)
             {
-                wpbay_log_to_file('Failed to get license status: ' . print_r($response, true));
+                wpbay_log_to_file('Failed to get license status!');
             }
             set_transient( $this->license_status_option, 'invalid', DAY_IN_SECONDS );
             return;
@@ -178,12 +180,14 @@ class License_Manager
         {
             if ( ! self::$initialized ) 
             {
+                global $wpbay_sdk_version;
                 wp_enqueue_script( 'wpbay-admin-code-manager', plugins_url( '/scripts/purchase-code-manager.js', __FILE__ ), array( 'jquery' ), $this->this_sdk_version, true );
                 wp_localize_script( 'wpbay-admin-code-manager', 'wpbay_sdk_ajax', array( 'ajax_url' => admin_url( 'admin-ajax.php' ) ) );
                 wp_enqueue_style(
                     'wpbay-license-manager-style',
                     plugin_dir_url( __FILE__ ) . 'styles/register.css',
-                    array()
+                    array(),
+                    $wpbay_sdk_version
                 );
                 self::$initialized = true;
             }
@@ -206,18 +210,21 @@ class License_Manager
             }
             add_settings_section(
                 $section_id,
-                esc_html__( 'WPBay License', 'wpbay-sdk' ),
+                esc_html(wpbay_get_text_inline( 'WPBay License', 'wpbay-sdk' )),
                 null,
                 $settings_name
             );
             add_settings_field(
                 'wpbay_sdk_purchase_code' . $this->product_slug,
-                esc_html__( 'License Registration', 'wpbay-sdk' ) . '<br/>' . $this->product_slug,
+                esc_html(wpbay_get_text_inline( 'License Registration', 'wpbay-sdk' )) . '<br/>' . $this->product_slug,
                 array( $this, 'purchase_code_field_callback' ),
                 $settings_name,
                 $section_id
             );
-            register_setting( 'wpbay_sdk_settings', $this->option_name . $this->product_slug, array( $this, 'sanitize_license_data' ) );
+            register_setting( 'wpbay_sdk_settings', $this->option_name . $this->product_slug,
+            array(
+                'sanitize_callback' => 'sanitize_text_field'
+            ) );
             
             $wpbay_sdk_added_settings_sections[] = $section_id;
         }
@@ -231,39 +238,35 @@ class License_Manager
         if ( $purchase_code ) 
         {
             echo '<div class="wpbay-sdk-register-form">';
-            echo '<p class="description">' . esc_html__( 'Your purchase code is registered.', 'wpbay-sdk' ) . '</p>';
+            echo '<p class="description">' . esc_html(wpbay_get_text_inline( 'Your purchase code is registered.', 'wpbay-sdk' )) . '</p>';
             echo '<form method="post" class="wpbay-sdk-form">';
             echo '<table class="form-table"><tr><th scope="row">
-            <strong>' . esc_html__( 'Purchase Code:', 'wpbay-sdk' ) . '</strong></th><td><span class="wpbay_reveal_code">' . esc_html( $purchase_code ) . '</span></td></tr>';
-            echo '<tr><td colspan="2"><input type="button" class="button wpbay-purchase-code-revoke" data-id="' . esc_attr($product_slug). '" value="' . esc_html__( 'Revoke Code', 'wpbay-sdk' ) . '">&nbsp;
-            <input type="button" class="button wpbay-purchase-code-registered" data-id="' . esc_attr($product_slug). '" value="' . esc_html__( 'Code Is Registered?', 'wpbay-sdk' ) . '">&nbsp;
-            <input type="button" class="button wpbay-purchase-code-check" data-id="' . esc_attr($product_slug). '" value="' . esc_html__( 'Validate Code', 'wpbay-sdk' ) . '">
+            <strong>' . esc_html(wpbay_get_text_inline( 'Purchase Code:', 'wpbay-sdk' )) . '</strong></th><td><span class="wpbay_reveal_code">' . esc_html( $purchase_code ) . '</span></td></tr>';
+            echo '<tr><td colspan="2"><input type="button" class="button wpbay-purchase-code-revoke" data-id="' . esc_attr($product_slug). '" value="' . esc_html(wpbay_get_text_inline( 'Revoke Code', 'wpbay-sdk' )) . '">&nbsp;
+            <input type="button" class="button wpbay-purchase-code-registered" data-id="' . esc_attr($product_slug). '" value="' . esc_html(wpbay_get_text_inline( 'Code Is Registered?', 'wpbay-sdk' )) . '">&nbsp;
+            <input type="button" class="button wpbay-purchase-code-check" data-id="' . esc_attr($product_slug). '" value="' . esc_html(wpbay_get_text_inline( 'Validate Code', 'wpbay-sdk' )) . '">
             <input type="hidden" id="wpbay_sdk_purchase_code' . esc_attr($product_slug). '" value="' . esc_attr( $purchase_code ) . '">
-            <input type="hidden" id="wpbay_sdk_security' . esc_attr($product_slug). '" value="' . wp_create_nonce('wpbay_sdk_purchase_code_security') . '"></td></tr></table>';
+            <input type="hidden" id="wpbay_sdk_security' . esc_attr($product_slug). '" value="' . esc_attr(wp_create_nonce('wpbay_sdk_purchase_code_security')) . '"></td></tr></table>';
             echo '</form>';
             echo '</div>';
         } 
         else 
         {
             echo '<div class="wpbay-sdk-register-form">';
-            echo '<p class="description">' . esc_html__( 'Register your product by entering your WPBay.com purchase code below.', 'wpbay-sdk' ) . '</p>';
+            echo '<p class="description">' . esc_html(wpbay_get_text_inline( 'Register your product by entering your WPBay.com purchase code below.', 'wpbay-sdk' )) . '</p>';
             echo '<form method="post" class="wpbay-sdk-form">';
             echo '<table class="form-table"><tr><th scope="row">';
-echo '<label for="wpbay_sdk_purchase_code' . esc_attr($product_slug) . '">' . esc_html__( 'Purchase Code:', 'wpbay-sdk' ) . '</label>';
+echo '<label for="wpbay_sdk_purchase_code' . esc_attr($product_slug) . '">' . esc_html(wpbay_get_text_inline( 'Purchase Code:', 'wpbay-sdk' )) . '</label>';
 echo '</th><td>';
 echo '<input type="text" id="wpbay_sdk_purchase_code' . esc_attr($product_slug) . '" class="regular-text" placeholder="e.g., ABCDEF-1234567890AB-CDEFGHIJKLMN12-3456789" required>';
-echo '<input type="hidden" id="wpbay_sdk_security' . esc_attr($product_slug). '" value="' . wp_create_nonce('wpbay_sdk_purchase_code_security') . '">';
+echo '<input type="hidden" id="wpbay_sdk_security' . esc_attr($product_slug). '" value="' . esc_attr(wp_create_nonce('wpbay_sdk_purchase_code_security')) . '">';
 echo '</td></tr></table>';
-            echo '<p><input type="button" data-id="' . esc_attr($product_slug). '" class="button button-primary wpbay-purchase-code-register" value="' . esc_html__( 'Register', 'wpbay-sdk' ) . '"></p>';
+            echo '<p><input type="button" data-id="' . esc_attr($product_slug). '" class="button button-primary wpbay-purchase-code-register" value="' . esc_html(wpbay_get_text_inline( 'Register', 'wpbay-sdk' )) . '"></p>';
             echo '</form>';
             echo '</div>';
         }
     }
 
-    public function sanitize_license_data( $data ) 
-    {
-        return $data;
-    }
     public function is_plan($plan_name) 
     {
         $get_plan_type = $this->plan_type;
@@ -276,9 +279,13 @@ echo '</td></tr></table>';
     public function handle_ajax_requests()
     {
         $wpbay_sdk_result = array('status' => 'error', 'message' => 'Something went wrong with the purchase code verification');
-        if ( !isset($_POST['wpbay_sdk_security']) || !wp_verify_nonce( $_POST['wpbay_sdk_security'], 'wpbay_sdk_purchase_code_security' ) ) {
-            $wpbay_sdk_result['message'] = 'You are not allowed to execute this action! ' . print_r($_POST, true);
+        if ( !isset($_POST['wpbay_sdk_security']) || !wp_verify_nonce( sanitize_text_field(wp_unslash( $_POST['wpbay_sdk_security'] )), 'wpbay_sdk_purchase_code_security' ) ) {
+            $wpbay_sdk_result['message'] = 'You are not allowed to execute this action!';
             wp_send_json($wpbay_sdk_result);
+        }
+        if ( ! current_user_can( 'manage_options' ) ) {
+            $wpbay_sdk_result['message'] = 'You are not allowed to perform this action.';
+            wp_send_json( $wpbay_sdk_result );
         }
         if(!isset($_POST['wpbay_sdk_action']))
         {
@@ -293,11 +300,11 @@ echo '</td></tr></table>';
         $product_slug = '';
         if(isset($_POST['wpbay_slug']))
         {
-            $product_slug = $_POST['wpbay_slug'];
+            $product_slug = sanitize_text_field(wp_unslash( $_POST['wpbay_slug'] ));
         }
         if($_POST['wpbay_sdk_action'] == 'register')
         {
-            $purchase_code = isset($_POST['purchase_code']) && !empty($_POST['purchase_code']) ? sanitize_text_field($_POST['purchase_code']) : '';
+            $purchase_code = isset($_POST['purchase_code']) && !empty($_POST['purchase_code']) ? sanitize_text_field(wp_unslash($_POST['purchase_code'])) : '';
             if(empty($purchase_code))
             {
                 $wpbay_sdk_result['message'] = 'You need to enter a purchase code for this to work.';
@@ -318,7 +325,7 @@ echo '</td></tr></table>';
         }
         elseif($_POST['wpbay_sdk_action'] == 'revoke')
         {
-            $purchase_code = isset($_POST['purchase_code']) && !empty($_POST['purchase_code']) ? sanitize_text_field($_POST['purchase_code']) : '';
+            $purchase_code = isset($_POST['purchase_code']) && !empty($_POST['purchase_code']) ? sanitize_text_field(wp_unslash($_POST['purchase_code'])) : '';
             if(empty($purchase_code))
             {
                 $wpbay_sdk_result['message'] = 'You need to enter a purchase code for this to work.';
@@ -340,7 +347,7 @@ echo '</td></tr></table>';
         }
         elseif($_POST['wpbay_sdk_action'] == 'check')
         {
-            $purchase_code = isset($_POST['purchase_code']) && !empty($_POST['purchase_code']) ? sanitize_text_field($_POST['purchase_code']) : '';
+            $purchase_code = isset($_POST['purchase_code']) && !empty($_POST['purchase_code']) ? sanitize_text_field(wp_unslash($_POST['purchase_code'])) : '';
             if(empty($purchase_code))
             {
                 $wpbay_sdk_result['message'] = 'You need to enter a purchase code for this to work.';
@@ -361,7 +368,7 @@ echo '</td></tr></table>';
         }
         elseif($_POST['wpbay_sdk_action'] == 'registered')
         {
-            $purchase_code = isset($_POST['purchase_code']) && !empty($_POST['purchase_code']) ? sanitize_text_field($_POST['purchase_code']) : '';
+            $purchase_code = isset($_POST['purchase_code']) && !empty($_POST['purchase_code']) ? sanitize_text_field(wp_unslash($_POST['purchase_code'])) : '';
             if(empty($purchase_code))
             {
                 $wpbay_sdk_result['message'] = 'You need to enter a purchase code for this to work.';
@@ -481,7 +488,7 @@ echo '</td></tr></table>';
                 'wpbay_product_id'=> $this->wpbay_product_id,
                 'developer_mode'  => $this->developer_mode,
                 'secret_key'      => $this->secret_key,
-                'cachebust'       => rand()
+                'cachebust'       => wp_rand()
             )
         );
         $response = $this->api_manager->post_request( $api_url, $pargs );
@@ -489,7 +496,7 @@ echo '</td></tr></table>';
         if ( wpbay_sdk_is_error( $response ) ) {
             if($this->debug_mode === true)
             {
-                wpbay_log_to_file('Error in purchase code registration: ' . print_r($response, true));
+                wpbay_log_to_file('Error in purchase code registration!');
             }
             $wpbay_sdk_result['message'] = 'Unable to connect to the WPBay server. Please try again.';
             return $wpbay_sdk_result;
@@ -551,7 +558,7 @@ echo '</td></tr></table>';
                 'product_slug'    => $product_slug,
                 'developer_mode'  => $this->developer_mode,
                 'secret_key'      => $this->secret_key,
-                'cachebust'       => rand()
+                'cachebust'       => wp_rand()
             )
         );
         $response = $this->api_manager->post_request( $api_url, $pargs );
@@ -559,7 +566,7 @@ echo '</td></tr></table>';
         if ( wpbay_sdk_is_error( $response ) ) {
             if($this->debug_mode === true)
             {
-                wpbay_log_to_file('Error in purchase code revoking: ' . print_r($response, true));
+                wpbay_log_to_file('Error in purchase code revoking!');
             }
             $wpbay_sdk_result['message'] = 'Unable to connect to the WPBay server. Please try again.';
             return $wpbay_sdk_result;
@@ -617,7 +624,7 @@ echo '</td></tr></table>';
                 'developer_mode'  => $this->developer_mode,
                 'secret_key'      => $this->secret_key,
                 'product_slug'    => $this->product_slug,
-                'cachebust'       => rand()
+                'cachebust'       => wp_rand()
             ),
         );
         $response = $this->api_manager->post_request( $api_url, $arguments );
@@ -625,7 +632,7 @@ echo '</td></tr></table>';
         if ( wpbay_sdk_is_error( $response ) ) {
             if($this->debug_mode === true)
             {
-                wpbay_log_to_file('Error in purchase code checking: ' . print_r($response, true));
+                wpbay_log_to_file('Error in purchase code checking!');
             }
             set_transient( $this->license_status_option, 'invalid', DAY_IN_SECONDS );
             $wpbay_sdk_result['message'] = 'Unable to connect to the WPBay server. Please try again.';
@@ -685,14 +692,14 @@ echo '</td></tr></table>';
                 'developer_mode'  => $this->developer_mode,
                 'secret_key'      => $this->secret_key,
                 'product_slug'    => $this->product_slug,
-                'cachebust'       => rand()
+                'cachebust'       => wp_rand()
             ),
         );
         $response = $this->api_manager->post_request( $api_url, $arguments );
         if ( wpbay_sdk_is_error( $response ) ) {
             if($this->debug_mode === true)
             {
-                wpbay_log_to_file('Error in check if purchase code is registered: ' . print_r($response, true));
+                wpbay_log_to_file('Error in check if purchase code is registered!');
             }
             $wpbay_sdk_result['message'] = 'Unable to connect to the WPBay server. Please try again.';
             return $wpbay_sdk_result;
@@ -730,7 +737,7 @@ echo '</td></tr></table>';
                 'developer_mode'  => $this->developer_mode,
                 'secret_key'      => $this->secret_key,
                 'product_slug'    => $this->product_slug,
-                'cachebust'       => rand()
+                'cachebust'       => wp_rand()
             ),
         );
         $response = $this->api_manager->post_request( $api_url, $arguments );
@@ -738,7 +745,7 @@ echo '</td></tr></table>';
         if ( wpbay_sdk_is_error( $response ) ) {
             if($this->debug_mode === true)
             {
-                wpbay_log_to_file('Failed to validate license: ' . print_r($response, true));
+                wpbay_log_to_file('Failed to validate license!');
             }
             return false;
         }
@@ -757,7 +764,10 @@ echo '</td></tr></table>';
     {
         if ( empty($this->get_purchase_code()) ) 
         {
-            $license_notice = sprintf( wp_kses( __( "Your license is not active for: <a href=\"https://wpbay.com/?p=%s\" target=\"_blank\"><strong>%s</strong></a>. Please activate your license to use this product.", 'aiomatic-automatic-ai-content-writer'), array('strong' => array(),'a' => array('href' => array(),'target' => array())) ), esc_html($this->wpbay_product_id), esc_html($this->product_name) );
+            $license_notice = sprintf( wp_kses( 
+                // translators: %1$s: Product ID, %2$s: Product name
+                wpbay_get_text_inline( "Your license is not active for: <a href=\"https://wpbay.com/?p=%1\$s\" target=\"_blank\"><strong>%2\$s</strong></a>. Please activate your license to use this product.", 'wpbay-sdk'),
+                     array('strong' => array(),'a' => array('href' => array(),'target' => array())) ), esc_html($this->wpbay_product_id), esc_html($this->product_name) );
             $license_notice = apply_filters( 'wpbay_sdk_activate_license_notice', $license_notice );
             $this->notice_manager->add_notice($license_notice, 'warning');
         }

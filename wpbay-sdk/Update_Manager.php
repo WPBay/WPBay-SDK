@@ -10,6 +10,8 @@ class Update_Manager {
     private static $initialized = false;
     private $is_free = false;
 
+    // API endpoint used to check for updates and retrieve update packages from WPBay.com.
+    // For full details, see WPBay_Loader.php or the SDK readme file.
     private $api_endpoint = 'https://wpbay.com/api/update/v1/';
     private $product_slug;
     private $product_file;
@@ -23,9 +25,10 @@ class Update_Manager {
     private $license_manager;
     private $notice_manager;
     private $debug_mode;
+    private $uploaded_to_wp_org;
     private static $pre_set_site_transient_filters_added = array();
 
-    private function __construct( $wpbay_product_id, $product_slug, $product_file, $api_manager, $license_manager, $notice_manager, $product_type = 'plugin', $is_free = false, $debug_mode = false ) 
+    private function __construct( $wpbay_product_id, $product_slug, $product_file, $api_manager, $license_manager, $notice_manager, $product_type = 'plugin', $is_free = false, $debug_mode = false, $uploaded_to_wp_org = true ) 
     {
         $this->product_slug       = $product_slug;
         $this->wpbay_product_id   = $wpbay_product_id;
@@ -35,15 +38,21 @@ class Update_Manager {
         $this->license_manager    = $license_manager;
         $this->notice_manager     = $notice_manager;
         $this->is_free            = $is_free;
-        $this->debug_mode            = $debug_mode;
+        $this->debug_mode         = $debug_mode;
+        $this->uploaded_to_wp_org = $uploaded_to_wp_org;
         $this->cache_key          = 'wpbay_sdk_update_' . $this->product_slug;
 
+        if ( $this->uploaded_to_wp_org ) 
+        {
+            return;
+        }
         if ( $this->product_type === 'plugin' ) 
         {
             $this->plugin_basename = plugin_basename( $this->product_file );
             //this filter is not used if the plugin is uploaded to wordpress.org repo
             add_filter( 'pre_set_si' . 'te_tran' . 'sient_' . 'upd' . 'ate_plugins', array( $this, 'check_for_updates' ) );
             self::$pre_set_site_transient_filters_added[] = array( $this, 'check_for_updates' );
+            //this code is not running for wordpress.org uploaded plugins, as the uploaded_to_wp_org flag is set to true
             add_filter( 'plugins_api', array( $this, 'plugins_api_callback' ), 10, 3 );
             if (!$this->is_free) 
             {
@@ -61,17 +70,31 @@ class Update_Manager {
             }
             if ( ! self::$initialized ) 
             {
+                // Initialize update-related filters only once.
+                // These filters do NOT activate or deactivate any plugins directly.
+                // They are used to handle post-install cleanup and path correction after an SDK-powered plugin update.
+                // NOTE: This logic IS disabled in plugins submitted to WordPress.org, check uploaded_to_wp_org.
+                /**
+                 * Hook into the upgrader post-install process to clean up temp folders or fix file structure.
+                 * This does NOT modify plugin activation status.
+                 */
                 add_filter( 'upgrader_post_install', array( __CLASS__, 'upgrader_post_install' ), 10, 3 );
+                /**
+                 * Hook into the upgrader source selection to adjust folder names (if needed).
+                 * This does NOT affect plugin activation/deactivation, only renames folder on install.
+                 */
                 add_filter( 'upgrader_source_selection', array( __CLASS__, 'upgrader_source_selection' ), 10, 3 );
                 self::$initialized = true;
             }
-        } elseif ( $this->product_type === 'theme' ) 
+        } 
+        elseif ( $this->product_type === 'theme' ) 
         {
             $theme = wp_get_theme( $this->product_slug );
             $this->theme_stylesheet = $theme->get_stylesheet();
             //this filter is not used if the theme is uploaded to wordpress.org
             add_filter( 'pre_set_' . 'site_trans' . 'ient_updat' . 'e_th' . 'emes', array( $this, 'check_for_updates' ) );
             self::$pre_set_site_transient_filters_added[] = array( $this, 'check_for_updates' );
+            //this code is not running for wordpress.org uploaded themes, as the uploaded_to_wp_org flag is set to true
             add_filter( 'themes_api', array( $this, 'themes_api_callback' ), 10, 3 );
             if (!$this->is_free) 
             {
@@ -89,7 +112,15 @@ class Update_Manager {
             }
             if ( ! self::$initialized ) 
             {
+                /**
+                 * Hook into the upgrader post-install process to clean up temp folders or fix file structure.
+                 * This does NOT modify plugin activation status.
+                 */
                 add_filter( 'upgrader_post_install', array( __CLASS__, 'upgrader_post_install' ), 10, 3 );
+                /**
+                 * Hook into the upgrader source selection to adjust folder names (if needed).
+                 * This does NOT affect plugin activation/deactivation, only renames folder on install.
+                 */
                 add_filter( 'upgrader_source_selection', array( __CLASS__, 'upgrader_source_selection' ), 10, 3 );
                 self::$initialized = true;
             }
@@ -114,7 +145,7 @@ class Update_Manager {
         }
     }
     public function add_theme_check_for_updates_link( $actions ) {
-        $updates_text = esc_html__('Check for updates', 'wpbay-sdk');
+        $updates_text = esc_html(wpbay_get_text_inline('Check for updates', 'wpbay-sdk'));
         $updates_text = apply_filters( 'wpbay_sdk_updates_check_message', $updates_text );
         $updates_text = esc_html($updates_text);
         $new_actions = array(
@@ -122,12 +153,24 @@ class Update_Manager {
         );
         return array_merge( $actions, $new_actions );
     }
+    /**
+     * Handles manual update check for themes sold outside WordPress.org (via WPBay).
+     *
+     * WordPress.org-hosted themes are not allowed to override the update system.
+     * This logic is only enabled for self-hosted or premium theme distributions.
+     * See the 'uploaded_to_wp_org' flag to disable this in .org submissions.
+     */
     public function handle_theme_check_for_updates_action() {
+        if ( $this->uploaded_to_wp_org ) 
+        {
+            return;
+        }
         if ( isset( $_GET['action'], $_GET['theme'] ) && $_GET['action'] === 'wpbay_sdk_check_for_theme_updates' ) {
             check_admin_referer( 'wpbay_sdk_check_for_theme_updates' );
     
             $theme = sanitize_text_field( wp_unslash( $_GET['theme'] ) );
             if ( $theme === $this->theme_stylesheet ) {
+                //this code is not running for wordpress.org uploaded themes, as the uploaded_to_wp_org flag is set to true
                 $transient = get_site_transient( 'update_themes' );
                 if ( ! is_object( $transient ) ) {
                     $transient = new \stdClass();
@@ -135,26 +178,50 @@ class Update_Manager {
                 $transient = $this->check_for_updates( $transient );
                 self::remove_all_added_pre_site_transient_filters();
                 set_site_transient( 'update_themes', $transient );
-                wp_safe_redirect( admin_url( 'themes.php?checked_for_theme_updates=1' ) );
+                wp_safe_redirect( wp_nonce_url(admin_url( 'themes.php?checked_for_theme_updates=1' ), 'wpbay_sdk_checked_for_theme_updates') );
                 exit;
             }
         }
     }
+    /**
+     * Handles manual update notice for themes sold outside WordPress.org (via WPBay).
+     *
+     * WordPress.org-hosted themes are not allowed to override the update system.
+     * This logic is only enabled for self-hosted or premium theme distributions.
+     * See the 'uploaded_to_wp_org' flag to disable this in .org submissions.
+     */
     public function theme_update_checked_admin_notice() {
-        if ( isset( $_GET['checked_for_theme_updates'] ) ) {
-            $updates_completed_text = esc_html__('Update check completed.', 'wpbay-sdk');
+        if ( $this->uploaded_to_wp_org ) 
+        {
+            return;
+        }
+        if ( isset( $_GET['checked_for_theme_updates'] ) && $_GET['checked_for_theme_updates'] == '1' ) {
+            check_admin_referer( 'wpbay_sdk_checked_for_theme_updates' );
+            $updates_completed_text = esc_html(wpbay_get_text_inline('Update check completed.', 'wpbay-sdk'));
             $updates_completed_text = apply_filters( 'wpbay_sdk_updates_check_message', $updates_completed_text );
             $updates_completed_text = esc_html($updates_completed_text);
             $this->notice_manager->add_notice($updates_completed_text, 'success');
         }
     }
+    /**
+     * Handles manual update check for updates action sold outside WordPress.org (via WPBay).
+     *
+     * WordPress.org-hosted themes are not allowed to override the update system.
+     * This logic is only enabled for self-hosted or premium theme distributions.
+     * See the 'uploaded_to_wp_org' flag to disable this in .org submissions.
+     */
     public function handle_check_for_updates_action() 
     {
+        if ( $this->uploaded_to_wp_org ) 
+        {
+            return;
+        }
         if ( isset( $_GET['action'], $_GET['plugin'] ) && $_GET['action'] === 'wpbay_sdk_check_for_updates' ) 
         {
             check_admin_referer( 'wpbay_sdk_check_for_updates' );
             $plugin = sanitize_text_field( wp_unslash( $_GET['plugin'] ) );
             if ( $plugin === $this->plugin_basename ) {
+                //this code is not running for wordpress.org uploaded plugins, as the uploaded_to_wp_org flag is set to true
                 $transient = get_site_transient( 'update_plugins' );
                 if ( ! is_object( $transient ) ) {
                     $transient = new \stdClass();
@@ -162,23 +229,35 @@ class Update_Manager {
                 $transient = $this->check_for_updates( $transient );
                 self::remove_all_added_pre_site_transient_filters();
                 set_site_transient( 'update_plugins', $transient );
-                wp_safe_redirect( admin_url( 'plugins.php?checked_for_updates=1' ) );
+                wp_safe_redirect( wp_nonce_url(admin_url( 'plugins.php?checked_for_updates=1' ), 'wpbay_sdk_checked_for_updates') );
                 exit;
             }
         }
     }
 
+    /**
+     * Handles manual update check for update notice sold outside WordPress.org (via WPBay).
+     *
+     * WordPress.org-hosted themes are not allowed to override the update system.
+     * This logic is only enabled for self-hosted or premium theme distributions.
+     * See the 'uploaded_to_wp_org' flag to disable this in .org submissions.
+     */
     public function update_checked_admin_notice() {
-        if ( isset( $_GET['checked_for_updates'] ) ) 
+        if ( $this->uploaded_to_wp_org ) 
         {
-            $updates_completed_text = esc_html__('Update check completed.', 'wpbay-sdk');
+            return;
+        }
+        if ( isset( $_GET['checked_for_updates'] ) && $_GET['checked_for_updates'] == '1' ) 
+        {
+            check_admin_referer( 'wpbay_sdk_checked_for_updates' );
+            $updates_completed_text = esc_html(wpbay_get_text_inline('Update check completed.', 'wpbay-sdk'));
             $updates_completed_text = apply_filters( 'wpbay_sdk_updates_check_message', $updates_completed_text );
             $updates_completed_text = esc_html($updates_completed_text);
             $this->notice_manager->add_notice($updates_completed_text, 'success');
         }
     }
     public function add_check_for_updates_link( $actions ) {
-        $updates_text = esc_html__('Check for updates', 'wpbay-sdk');
+        $updates_text = esc_html(wpbay_get_text_inline('Check for updates', 'wpbay-sdk'));
         $updates_text = apply_filters( 'wpbay_sdk_updates_check_message', $updates_text );
         $updates_text = esc_html($updates_text);
         $new_actions = array(
@@ -187,8 +266,19 @@ class Update_Manager {
         return array_merge( $actions, $new_actions );
     }
 
+    /**
+     * Handles update checking for themes sold outside WordPress.org (via WPBay).
+     *
+     * WordPress.org-hosted themes are not allowed to override the update system.
+     * This logic is only enabled for self-hosted or premium theme distributions.
+     * See the 'uploaded_to_wp_org' flag to disable this in .org submissions.
+     */
     public function check_for_updates( $transient ) 
     {
+        if ( $this->uploaded_to_wp_org ) 
+        {
+            return $transient;
+        }
         if ( empty( $transient->checked ) ) {
             return $transient;
         }
@@ -197,6 +287,7 @@ class Update_Manager {
             return $transient;
         }
         
+        //this code is not running for wordpress.org uploaded plugins, as the uploaded_to_wp_org flag is set to true
         $update_data = get_site_transient( $this->cache_key );
         if ( false === $update_data ) {
             $purchase_code     = $this->license_manager->get_purchase_code();
@@ -233,7 +324,7 @@ class Update_Manager {
             if ( ! empty( $response['error'] ) ) {
                 if($this->debug_mode === true)
                 {
-                    wpbay_log_to_file('Failed to check for updates: ' . print_r($response, true));
+                    wpbay_log_to_file('Failed to check for updates!');
                 }
                 return $transient;
             }
@@ -314,8 +405,19 @@ class Update_Manager {
         return $transient;
     }
 
+    /**
+     * Handles plugin api callback for themes sold outside WordPress.org (via WPBay).
+     *
+     * WordPress.org-hosted themes are not allowed to override the update system.
+     * This logic is only enabled for self-hosted or premium theme distributions.
+     * See the 'uploaded_to_wp_org' flag to disable this in .org submissions.
+     */
     public function plugins_api_callback( $result, $action, $args ) 
     {
+        if ( $this->uploaded_to_wp_org ) 
+        {
+            return $result;
+        }
         if ( $action !== 'plugin_information' ) {
             return $result;
         }
@@ -355,7 +457,7 @@ class Update_Manager {
             if ( ! empty( $response['error'] ) ) {
                 if($this->debug_mode === true)
                 {
-                    wpbay_log_to_file('Failed to check API callback: ' . print_r($response, true));
+                    wpbay_log_to_file('Failed to check API callback!');
                 }
                 return $result;
             }
@@ -392,7 +494,18 @@ class Update_Manager {
         return $plugin_info;
     }
 
+    /**
+     * Handles plugin update for plugins sold outside WordPress.org (via WPBay).
+     *
+     * WordPress.org-hosted themes are not allowed to override the update system.
+     * This logic is only enabled for self-hosted or premium theme distributions.
+     * See the 'uploaded_to_wp_org' flag to disable this in .org submissions.
+     */
     public function themes_api_callback( $result, $action, $args ) {
+        if ( $this->uploaded_to_wp_org ) 
+        {
+            return $result;
+        }
         if ( $action !== 'theme_information' ) {
             return $result;
         }
@@ -463,7 +576,8 @@ class Update_Manager {
         return $theme_info;
     }
 
-    public static function upgrader_post_install( $source, $remote_source, $upgrader ) {
+    public static function upgrader_post_install( $source, $remote_source, $upgrader ) 
+    {
         
         global $wp_filesystem;
 
@@ -499,7 +613,7 @@ class Update_Manager {
                 } else {
                     return new WP_Error(
                         'rename_failed',
-                        esc_html__( 'The remote plugin package does not contain a folder with the desired slug and renaming did not work.', 'wpbay-sdk' ) . ' ' . esc_html__( 'Please contact the plugin provider and ask them to package their plugin according to the WordPress guidelines.', 'wpbay-sdk' ),
+                        esc_html(wpbay_get_text_inline( 'The remote plugin package does not contain a folder with the desired slug and renaming did not work.', 'wpbay-sdk' )) . ' ' . esc_html(wpbay_get_text_inline( 'Please contact the plugin provider and ask them to package their plugin according to the WordPress guidelines.', 'wpbay-sdk' )),
                         array( 'found' => $subdir_name, 'expected' => $desired_slug )
                     );
                 }
@@ -507,7 +621,7 @@ class Update_Manager {
             } elseif ( empty( $subdir_name ) ) {
                 return new WP_Error(
                     'packaged_wrong',
-                    esc_html__( 'The remote plugin package consists of more than one file, but the files are not packaged in a folder.', 'wpbay-sdk' ) . ' ' . esc_html__( 'Please contact the plugin provider and ask them to package their plugin according to the WordPress guidelines.', 'wpbay-sdk' ),
+                    esc_html(wpbay_get_text_inline( 'The remote plugin package consists of more than one file, but the files are not packaged in a folder.', 'wpbay-sdk' )) . ' ' . esc_html(wpbay_get_text_inline( 'Please contact the plugin provider and ask them to package their plugin according to the WordPress guidelines.', 'wpbay-sdk' )),
                     array( 'found' => $subdir_name, 'expected' => $desired_slug )
                 );
             }
@@ -536,7 +650,7 @@ class Update_Manager {
                 } else {
                     return new WP_Error(
                         'rename_failed',
-                        esc_html__( 'The remote theme package does not contain a folder with the desired slug and renaming did not work.', 'wpbay-sdk' ) . ' ' . esc_html__( 'Please contact the theme provider and ask them to package their theme according to the WordPress guidelines.', 'wpbay-sdk' ),
+                        esc_html(wpbay_get_text_inline( 'The remote theme package does not contain a folder with the desired slug and renaming did not work.', 'wpbay-sdk' )) . ' ' . esc_html(wpbay_get_text_inline( 'Please contact the theme provider and ask them to package their theme according to the WordPress guidelines.', 'wpbay-sdk' )),
                         array( 'found' => $subdir_name, 'expected' => $desired_slug )
                     );
                 }
@@ -544,7 +658,7 @@ class Update_Manager {
             } elseif ( empty( $subdir_name ) ) {
                 return new WP_Error(
                     'packaged_wrong',
-                    esc_html__( 'The remote theme package consists of more than one file, but the files are not packaged in a folder.', 'wpbay-sdk' ) . ' ' . esc_html__( 'Please contact the theme provider and ask them to package their theme according to the WordPress guidelines.', 'wpbay-sdk' ),
+                    esc_html(wpbay_get_text_inline( 'The remote theme package consists of more than one file, but the files are not packaged in a folder.', 'wpbay-sdk' )) . ' ' . esc_html(wpbay_get_text_inline( 'Please contact the theme provider and ask them to package their theme according to the WordPress guidelines.', 'wpbay-sdk' )),
                     array( 'found' => $subdir_name, 'expected' => $desired_slug )
                 );
             }
@@ -567,7 +681,7 @@ class Update_Manager {
                 if ( $wp_filesystem->move( $source, $corrected_source, true ) ) {
                     return $corrected_source;
                 } else {
-                    return new \WP_Error( 'rename_failed', esc_html__( 'Failed to rename plugin directory.', 'wpbay-sdk' ) );
+                    return new \WP_Error( 'rename_failed', esc_html(wpbay_get_text_inline( 'Failed to rename plugin directory.', 'wpbay-sdk' )) );
                 }
             } 
             elseif ( $upgrader instanceof Theme_Upgrader ) 
@@ -580,7 +694,7 @@ class Update_Manager {
                 if ( $wp_filesystem->move( $source, $corrected_source, true ) ) {
                     return $corrected_source;
                 } else {
-                    return new \WP_Error( 'rename_failed', esc_html__( 'Failed to rename theme directory.', 'wpbay-sdk' ) );
+                    return new \WP_Error( 'rename_failed', esc_html(wpbay_get_text_inline( 'Failed to rename theme directory.', 'wpbay-sdk' )) );
                 }
             }
         }
@@ -593,7 +707,7 @@ class Update_Manager {
             $purchase_code = $this->license_manager->get_purchase_code();
             if ( empty( $purchase_code ) ) {
                 echo '<tr class="plugin-update-tr"><td colspan="3" class="plugin-update colspanchange"><div class="update-message notice inline notice-warning notice-alt"><p>';
-                esc_html_e( 'Please activate your plugin\'s license to receive updates.', 'wpbay-sdk' );
+                echo esc_html(wpbay_get_text_inline( 'Please activate your plugin\'s license to receive updates.', 'wpbay-sdk' ));
                 echo '</p></div></td></tr>';
             }
         }
@@ -604,7 +718,7 @@ class Update_Manager {
             $purchase_code = $this->license_manager->get_purchase_code();
             if ( empty( $purchase_code ) ) {
                 echo '<div class="theme-update-message notice inline notice-warning notice-alt"><p>';
-                esc_html_e( 'Please activate your theme\'s license to receive updates.', 'wpbay-sdk' );
+                echo esc_html(wpbay_get_text_inline( 'Please activate your theme\'s license to receive updates.', 'wpbay-sdk' ));
                 echo '</p></div>';
             }
         }

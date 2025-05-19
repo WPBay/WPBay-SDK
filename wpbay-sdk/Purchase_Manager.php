@@ -9,7 +9,11 @@ class Purchase_Manager
 {
     private static $instances = array();
 
+    // Base URL for redirecting users to WPBay's checkout page.
+    // See WPBay_Loader.php or the SDK readme file for more details.
     private $wpbay_sdk_endpoint_checkout = 'https://wpbay.com/';
+    // API endpoint for fetching available upgrade options and validating upgrade purchases.
+    // Full data disclosure is available in WPBay_Loader.php and the SDK readme.
     private $api_upgrade_endpoint = 'https://wpbay.com/api/upgrade/v1/';
     private $product_slug;
     private $wpbay_product_id;
@@ -46,10 +50,12 @@ class Purchase_Manager
     {
         if ( ! self::$initialized ) 
         {
+            global $wpbay_sdk_version;
             wp_enqueue_style(
                 'wpbay-purchase-manager-style',
                 plugin_dir_url( __FILE__ ) . 'styles/purchase.css',
-                array()
+                array(),
+                $wpbay_sdk_version
             );
             self::$initialized = true;
         }
@@ -64,7 +70,7 @@ class Purchase_Manager
             {
                 $settings_name = 'wpbay-settings';
             }
-            $register_text = esc_html__('Register your purchase code', 'wpbay-sdk');
+            $register_text = esc_html(wpbay_get_text_inline('Register your purchase code', 'wpbay-sdk'));
             $register_text = apply_filters( 'wpbay_sdk_purchase_message_register', $register_text );
             $register_text = esc_html($register_text);
             add_settings_section(
@@ -73,7 +79,7 @@ class Purchase_Manager
                 null,
                 $settings_name
             );
-            $upgrade_text = esc_html__('Upgrade Options', 'wpbay-sdk');
+            $upgrade_text = esc_html(wpbay_get_text_inline('Upgrade Options', 'wpbay-sdk'));
             $upgrade_text = apply_filters( 'wpbay_sdk_purchase_message_register', $upgrade_text );
             $upgrade_text = esc_html($upgrade_text);
             add_settings_field(
@@ -92,13 +98,13 @@ class Purchase_Manager
         if ($upgrades && (!isset($upgrades['status']) || $upgrades['status'] != '404')) 
         {
             echo '<div id="wpbay-upgrade-options" class="wpbay-upgrade-wrapper">';
-            echo '<h3>' . esc_html__('Upgrade to Unlock More Features', 'wpbay-sdk') . '</h3>';
-            echo '<p class="more-descriptions">' . esc_html__('Choose a license that suits your needs and enjoy premium features, priority support, and updates.', 'wpbay-sdk') . '</p>';
+            echo '<h3>' . esc_html(wpbay_get_text_inline('Upgrade to Unlock More Features', 'wpbay-sdk')) . '</h3>';
+            echo '<p class="more-descriptions">' . esc_html(wpbay_get_text_inline('Choose a license that suits your needs and enjoy premium features, priority support, and updates.', 'wpbay-sdk')) . '</p>';
             echo '<div class="wpbay-upgrade-cards">';
             usort($upgrades, function($a, $b) {
-                if ($a['license_count'] == 0) {
+                if ($a['license_count'] == 0 || $a['license_count'] == 'd') {
                     return 1;
-                } elseif ($b['license_count'] == 0) {
+                } elseif ($b['license_count'] == 0 || $b['license_count'] == 'd') {
                     return -1;
                 } else {
                     return $a['license_count'] <=> $b['license_count'];
@@ -110,7 +116,11 @@ class Purchase_Manager
                 echo '<label for="upgrade_option_' . esc_attr($option['id']) . '">';
                 echo '<div class="wpbay-upgrade-icon">';
                 if ($option['license_count'] == 0) {
-                    $option['license_count'] = esc_html__('Unlimited', 'wpbay-sdk');
+                    $option['license_count'] = esc_html(wpbay_get_text_inline('Unlimited', 'wpbay-sdk'));
+                    echo '<span class="dashicons dashicons-admin-multisite"></span>';
+                }
+                elseif ($option['license_count'] == 'd') {
+                    $option['license_count'] = esc_html(wpbay_get_text_inline('Developer', 'wpbay-sdk'));
                     echo '<span class="dashicons dashicons-admin-multisite"></span>';
                 }
                 elseif ($option['license_count'] == 1) {
@@ -124,7 +134,7 @@ class Purchase_Manager
                 }
                 echo '</div>';
                 echo '<div class="wpbay-upgrade-details">';
-                echo '<strong>' . esc_html($option['license_count']) . ' ' . esc_html__('Site License', 'wpbay-sdk') . '</strong>';
+                echo '<strong>' . esc_html($option['license_count']) . ' ' . esc_html(wpbay_get_text_inline('Site License', 'wpbay-sdk')) . '</strong>';
                 echo '<p class="wpbay-upgrade-price">' . esc_html($option['display_price']) . '</p>';
                 echo '</div>';
 
@@ -132,10 +142,9 @@ class Purchase_Manager
                 echo '</div>';
             }
             echo '</div>';
-            $purchase_text = esc_html__('Upgrade Now', 'wpbay-sdk');
+            $purchase_text = esc_html(wpbay_get_text_inline('Upgrade Now', 'wpbay-sdk'));
             $purchase_text = apply_filters( 'wpbay_sdk_purchase_message_register', $purchase_text );
-            $purchase_text = esc_html($purchase_text);
-            echo '<button type="button" id="wpbay-purchase-upgrade' . esc_html($this->product_slug) . '" class="button button-primary wpbay-upgrade-button">' . $purchase_text . '</button>';
+            echo '<button type="button" id="wpbay-purchase-upgrade' . esc_html($this->product_slug) . '" class="button button-primary wpbay-upgrade-button">' . esc_html($purchase_text) . '</button>';
 
             $user_email = '';
             $first_name = '';
@@ -151,37 +160,32 @@ class Purchase_Manager
                 }
             }
             $checkout_url = $this->wpbay_sdk_endpoint_checkout . '?wpbay_checkout=1&add_to_cart=1&user_email=' . urlencode($user_email) . '&user_firstname=' . urlencode($first_name) . '&user_lastname=' . urlencode($last_name) . '&nonce=' . wp_create_nonce('wpbay_sdk_add_to_cart');
-            ?>
-            <script>
-                jQuery(document).ready(function($) {
-                    $('.wpbay-upgrade-card').on('click', function() {
-                        $('.wpbay-upgrade-card').removeClass('selected'); 
-                        $(this).addClass('selected'); 
-                        $(this).find('input[type="radio"]').prop('checked', true); 
-                    });
-                    $('#wpbay-purchase-upgrade<?php echo esc_html($this->product_slug);?>').on('click', function(event) {
-                        event.preventDefault();
-                        let upgrade_id = $('input[name="upgrade_option<?php echo esc_html($this->product_slug);?>"]:checked').val();
-                        let checkout_url = '<?php echo $checkout_url;?>';
-                        if(upgrade_id)
-                        {
-                            checkout_url += '&product_id=' + upgrade_id;
-                            window.location.replace(checkout_url);
-                        }
-                        else
-                        {
-                            alert('Please select a license plan before proceeding.');
-                        }
-                    });
-                });
-            </script>
-            <?php
+            $inline_js = "
+jQuery(document).ready(function($) {
+    $('.wpbay-upgrade-card').on('click', function() {
+        $('.wpbay-upgrade-card').removeClass('selected'); 
+        $(this).addClass('selected'); 
+        $(this).find('input[type=\"radio\"]').prop('checked', true); 
+    });
+    $('#wpbay-purchase-upgrade" . esc_js( $this->product_slug ) . "').on('click', function(event) {
+        event.preventDefault();
+        let upgrade_id = $('input[name=\"upgrade_option" . esc_js( $this->product_slug ) . "\"]:checked').val();
+        let checkout_url = '" . esc_js( $checkout_url ) . "';
+        if (upgrade_id) {
+            checkout_url += '&product_id=' + upgrade_id;
+            window.location.replace(checkout_url);
+        } else {
+            alert('Please select a license plan before proceeding.');
+        }
+    });
+});
+";
+            wp_add_inline_script( 'wpbay-sdk-upgrade-handler', $inline_js );
             wpbay_sdk_clean_admin_content_section();
         } else {
-            $no_options_text = esc_html__('No upgrade options available at the moment.', 'wpbay-sdk');
+            $no_options_text = esc_html(wpbay_get_text_inline('No upgrade options available at the moment.', 'wpbay-sdk'));
             $no_options_text = apply_filters( 'wpbay_sdk_purchase_message_no_options', $no_options_text );
-            $no_options_text = esc_html($no_options_text);
-            echo '<p>' . $no_options_text . '</p>';
+            echo '<p>' . esc_html($no_options_text) . '</p>';
         }
     }
 
@@ -203,7 +207,7 @@ class Purchase_Manager
         if ( wpbay_sdk_is_error( $response ) ) {
             if($this->debug_mode === true)
             {
-                wpbay_log_to_file('Failed to fetch upgrades: ' . print_r($response, true));
+                wpbay_log_to_file('Failed to fetch upgrades!');
             }
             return null;
         }
