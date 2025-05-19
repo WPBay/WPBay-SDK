@@ -148,6 +148,111 @@ if ($contact_manager) {
 
 ---
 
+## ✅ External Services Disclosure
+
+You should include the following section in the SDK’s own `readme.txt` or `readme.md` file. This ensures plugin authors and WordPress.org reviewers understand what data is sent and when — regardless of which plugin includes the SDK.
+
+---
+
+## == External Services ==
+
+The WPBay SDK connects to external WPBay.com API services to handle license management, analytics, and optional feedback reporting.
+
+The following API endpoints are used:
+
+---
+
+### = 1. License Management =
+
+**URL:** `https://wpbay.com/api/purchase/v1/verify`  
+Used to verify the validity of a purchase code and activate a license.
+
+**Data sent:**
+
+- Purchase code entered by the user  
+- Site URL (`get_bloginfo('url')`)  
+- API key provided to the plugin author  
+- Developer mode and secret key (if configured)  
+- Product slug and WPBay product ID  
+- A cachebust token to prevent caching
+
+**When it is sent:**
+
+- When the plugin/theme is activated with a license code  
+- Daily, via a scheduled license status check  
+- When the license is manually verified or revoked
+
+---
+
+### = 2. Analytics Tracking (optional) =
+
+**URL:** `https://wpbay.com/api/analytics/v1/submit`  
+Used to submit anonymous usage and activation data (opt-in).
+
+**Data sent:**
+
+- Activation timestamp  
+- Product slug and version  
+- Site locale  
+- License type and plan (if activated)  
+- Plugin/theme context (e.g., plugin or theme)  
+- **No personal user data is collected**
+
+**When it is sent:**
+
+- On first activation (if analytics is enabled)  
+- Occasionally during plugin load or version updates
+
+---
+
+### = 3. Feedback Submission (optional) =
+
+**URL:** `https://wpbay.com/api/feedback/v1/`  
+Used when users submit feedback via an integrated feedback form.
+
+**Data sent:**
+
+- User-submitted message  
+- Request type (bug, feature, support, etc.)  
+- Site URL and product slug  
+- User’s name and email (if entered)
+
+**When it is sent:**
+
+- Only when the user submits feedback through the plugin’s support form
+
+---
+
+## == Provider ==
+
+All API services are provided by [WPBay](https://wpbay.com):
+
+- [Terms of Service](https://wpbay.com/terms/)  
+- [Privacy Policy](https://wpbay.com/privacy/)
+
+> This SDK only sends data **after user consent**, when applicable, and includes opt-out options for analytics and feedback.
+
+---
+
+## ✅ Bonus: Add this as a PHP DocBlock
+
+In your main `WPBay_SDK.php` or loader class, include this docblock to help both developers and automated tools recognize the SDK’s API usage:
+
+```php
+/**
+ * This SDK integrates with external services provided by WPBay.com for license management,
+ * optional analytics, and feedback submission. All usage is documented in the SDK's readme.txt.
+ *
+ * External services:
+ * - https://wpbay.com/api/purchase/v1/
+ * - https://wpbay.com/api/analytics/v1/submit
+ * - https://wpbay.com/api/feedback/v1/
+ *
+ * Terms: https://wpbay.com/terms/
+ * Privacy: https://wpbay.com/privacy/
+ */
+```
+
 ## ❓ FAQ
 
 ### Where do I get my `api_key` and `wpbay_product_id`?
@@ -170,4 +275,3 @@ This SDK is open-source and follows the **GPL v2+ license**.
 ---
 
 🔗 **For full documentation, visit:** [WPBay SDK Docs](https://wpbay.com/wpbay-sdk-integration-documentation/)
-
