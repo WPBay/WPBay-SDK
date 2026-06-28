@@ -5,7 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-if ( ! class_exists( 'Admin_Notice_Manager' ) ) 
+if ( ! class_exists( __NAMESPACE__ . '\Admin_Notice_Manager' ) ) 
 {
     class Admin_Notice_Manager 
     {
@@ -126,4 +126,3 @@ if ( ! class_exists( 'Admin_Notice_Manager' ) )
         }
     }
 }
-?>

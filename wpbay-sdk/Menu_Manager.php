@@ -478,8 +478,52 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
         public function wpbay_sdk_activation_page_render() 
         {
             $args = array('is_free' => $this->is_free, 'purchase_code' => $this->license_manager->get_purchase_code(), 'product_slug' => $this->product_slug);
+            $allowed_html = array(
+                'a' => array(
+                    'href' => array(),
+                    'title' => array(),
+                    'target' => array(),
+                    'rel' => array(),
+                    'class' => array(),
+                ),
+                'p' => array(
+                    'class' => array(),
+                ),
+                'br' => array(),
+                'strong' => array(),
+                'em' => array(),
+                'form' => array(
+                    'method' => array(),
+                    'class' => array(),
+                ),
+                'table' => array(
+                    'class' => array(),
+                ),
+                'tr' => array(),
+                'td' => array(
+                    'colspan' => array(),
+                ),
+                'th' => array(
+                    'scope' => array(),
+                ),
+                'label' => array(
+                    'for' => array(),
+                ),
+                'input' => array(
+                    'type' => array(),
+                    'id' => array(),
+                    'class' => array(),
+                    'value' => array(),
+                    'placeholder' => array(),
+                    'required' => array(),
+                    'data-id' => array(),
+                ),
+                'div' => array(
+                    'class' => array(),
+                ),
+            );
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the activate.php template contains safe escaped and safe code.
-            echo wpbay_sdk_apply_filters( 'wpbay_sdk_activation_page', wpbay_sdk_get_template( 'activate.php', $args ), $this->product_slug );
+            echo wp_kses(wpbay_sdk_apply_filters( 'wpbay_sdk_activation_page', wpbay_sdk_get_template( 'activate.php', $args ), $this->product_slug ), $allowed_html );
         }
 
         private function set_default_menu_data()
@@ -785,7 +829,7 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
         public function render_support_page()
         {
             $support_url = $this->get_wp_support_forum_url();
-            wp_redirect($support_url);
+            wp_safe_redirect($support_url);
             exit;
         }
 

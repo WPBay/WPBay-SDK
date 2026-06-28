@@ -173,6 +173,11 @@ class Analytics_Manager
 
     public function show_opt_in_notice() 
     {
+        if (! function_exists( 'wp_create_nonce' )) 
+        {
+            // phpcs:ignore WordPress.Files.FileInclude.FileInclude — This include is conditional and only used to prevent errors on early execution. Reason: Ensures access to pluggable functions like wp_create_nonce() in rare edge cases (e.g., WP < 3.0 theme previews).
+            require_once wpbay_sdk_get_wp_path() . 'wp-includes/pluggable.php';
+        }
         $nonce = wp_create_nonce( 'wpbay_sdk_opt_in_' . $this->product_slug );
         $notice_content = '<p><b>' . esc_html( $this->product_slug ) . ':</b> ' . esc_html(wpbay_get_text_inline( 'We would like to collect anonymous usage data to help improve this product. No personal information will be collected.', 'wpbay-sdk' )) . '</p>
 <p><button class="button button-primary" onclick="location.href=\'' . esc_url( add_query_arg( array( 'wpbay_sdk_analytics_opt_in' => 'yes', 'wpbay_slug' => $this->product_slug, '_wpnonce' => $nonce ) ) ) . '\'">' . esc_html(wpbay_get_text_inline( 'Allow', 'wpbay-sdk' )) . '</button>
@@ -193,7 +198,7 @@ class Analytics_Manager
                 $this->opt_out();
             }
             update_option( "wpbay_sdk_{$this->product_slug}_analytics_consent_shown", '1' );
-            wp_redirect( remove_query_arg( array( 'wpbay_sdk_analytics_opt_in', 'wpbay_slug', '_wpnonce' ) ) );
+            wp_safe_redirect( remove_query_arg( array( 'wpbay_sdk_analytics_opt_in', 'wpbay_slug', '_wpnonce' ) ) );
             exit;
         }
     }

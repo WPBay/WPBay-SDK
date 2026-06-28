@@ -389,6 +389,14 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             }
             return false;
         }
+        public function get_plan_type() 
+        {
+            return $this->license_manager->get_plan_type();
+        }
+        public function get_plan() 
+        {
+            return $this->get_plan_type();
+        }
         //end of helpful functions
         
         public function get_first_time_path() 
@@ -518,7 +526,7 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
                 'wpbay-network-settings',
                 array($this, 'network_settings_page')
             );
-            self::$admin_menu_added = true;
+            self::$network_admin_menu_added = true;
         }
         public function network_settings_page() 
         {

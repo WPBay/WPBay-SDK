@@ -152,7 +152,7 @@ class Purchase_Manager
             if (is_user_logged_in()) 
             {
                 $current_user = wp_get_current_user();
-                if ($current_user instanceof WP_User) 
+                if ($current_user instanceof \WP_User) 
                 {
                     $user_email = !empty($current_user->user_email) ? $current_user->user_email : '';
                     $first_name = !empty($current_user->first_name) ? $current_user->first_name : '';

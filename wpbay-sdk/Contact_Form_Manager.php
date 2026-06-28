@@ -202,34 +202,35 @@ if ( !empty($purchase_code) )
             </p>
         </div>
 <?php
-$submit_id = 'wpbay-send-contact-message-' . esc_js( $this->product_slug );
-$status_id = 'wpbay-contact-form-status-' . esc_js( $this->product_slug );
-$form_id   = 'wpbay-contact-form-' . esc_js( $this->product_slug );
-$nonce_js  = esc_js( $nonce );
-$action    = 'wpbay_sdk_send_contact_message_' . esc_js( $this->product_slug );
+$submit_id = 'wpbay-send-contact-message-' . $this->product_slug;
+$status_id = 'wpbay-contact-form-status-' . $this->product_slug;
+$form_id   = 'wpbay-contact-form-' . $this->product_slug;
+$nonce_js  =  $nonce;
+$action    = 'wpbay_sdk_send_contact_message_' . sanitize_title( $this->product_slug );
 
-$sending_text = esc_js( apply_filters( 'wpbay_sdk_contact_form_label_sending', esc_html( wpbay_get_text_inline( 'Sending...', 'wpbay-sdk' ) ) ) );
-$sent_text    = esc_js( apply_filters( 'wpbay_sdk_contact_form_label_sent', esc_html( wpbay_get_text_inline( 'Your message has been sent successfully!', 'wpbay-sdk' ) ) ) );
-$error_text   = esc_js( apply_filters( 'wpbay_sdk_contact_form_label_error', esc_html( wpbay_get_text_inline( 'An error occurred. Please try again.', 'wpbay-sdk' ) ) ) );
+$sending_text =  apply_filters( 'wpbay_sdk_contact_form_label_sending', esc_html( wpbay_get_text_inline( 'Sending...', 'wpbay-sdk' ) ) );
+$sent_text    =  apply_filters( 'wpbay_sdk_contact_form_label_sent', esc_html( wpbay_get_text_inline( 'Your message has been sent successfully!', 'wpbay-sdk' ) ) );
+$error_text   =  apply_filters( 'wpbay_sdk_contact_form_label_error', esc_html( wpbay_get_text_inline( 'An error occurred. Please try again.', 'wpbay-sdk' ) ) );
+$script_handle = 'wpbay-sdk-contact-' . sanitize_title( $this->product_slug );
 
 $inline_js = "
 jQuery(document).ready(function($) {
-    $('#$submit_id').on('click', function(e) {
+    $('#" . esc_js($submit_id) . "').on('click', function(e) {
         e.preventDefault();
-        var firstName = $('#wpbay-contact-first-name-{$this->product_slug}').val();
-        var lastName = $('#wpbay-contact-last-name-{$this->product_slug}').val();
-        var email = $('#wpbay-contact-email-{$this->product_slug}').val();
-        var requestType = $('#wpbay-contact-request-type-{$this->product_slug}').val();
-        var summary = $('#wpbay-contact-summary-{$this->product_slug}').val();
-        var message = $('#wpbay-contact-message-{$this->product_slug}').val();
-        var nonce = '$nonce_js';
+        var firstName = $('#wpbay-contact-first-name-" . esc_js($this->product_slug) . "').val();
+        var lastName = $('#wpbay-contact-last-name-". esc_js($this->product_slug) . "').val();
+        var email = $('#wpbay-contact-email-" . esc_js($this->product_slug) . "').val();
+        var requestType = $('#wpbay-contact-request-type-" . esc_js($this->product_slug) . "').val();
+        var summary = $('#wpbay-contact-summary-" . esc_js($this->product_slug) . "').val();
+        var message = $('#wpbay-contact-message-" . esc_js($this->product_slug) . "').val();
+        var nonce = '" . esc_js($nonce_js) . "';
 
         $.ajax({
             url: ajaxurl,
             type: 'POST',
             dataType: 'json',
             data: {
-                action: '$action',
+                action: '" . esc_js($action) . "',
                 first_name: firstName,
                 last_name: lastName,
                 email: email,
@@ -239,31 +240,34 @@ jQuery(document).ready(function($) {
                 nonce: nonce
             },
             beforeSend: function() {
-                $('#$status_id').html('$sending_text');
+                $('#" . esc_js($status_id) . "').html('" . esc_js($sending_text) . "');
             },
             success: function(response) {
                 if (response.success) {
-                    $('#$status_id').html('$sent_text');
-                    $('#$form_id')[0].reset();
+                    $('#" . esc_js($status_id) . "').html('" . esc_js($sent_text) . "');
+                    $('#" . esc_js($form_id) . "')[0].reset();
                 } else {
-                    $('#$status_id').html(response.data);
+                    $('#" . esc_js($status_id) . "').html(response.data);
                 }
             },
             error: function() {
-                $('#$status_id').html('$error_text');
+                $('#" . esc_js($status_id) . "').html('" . esc_js($error_text) . "');
             }
         });
     });
 });
 ";
-        wp_add_inline_script( 'wpbay-sdk-contact', $inline_js );
+        global $wpbay_sdk_version;
+        wp_register_script( $script_handle, false, array( 'jquery' ), $wpbay_sdk_version, true );
+        wp_enqueue_script( $script_handle );
+        wp_add_inline_script( $script_handle, $inline_js );
     }
 
     public function handle_form_submission() {
         check_ajax_referer('wpbay_sdk_send_contact_message_' . $this->product_slug, 'nonce');
         if(!current_user_can( 'edit_posts' ))
         {
-            return;
+            wp_send_json_error(esc_html(wpbay_get_text_inline('You are not allowed to do this action.', 'wpbay-sdk')));
         }
         $first_name = isset($_POST['first_name']) ? sanitize_text_field(wp_unslash($_POST['first_name'])) : '';
         $last_name = isset($_POST['last_name']) ? sanitize_text_field(wp_unslash($_POST['last_name'])) : '';

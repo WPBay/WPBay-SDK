@@ -59,7 +59,7 @@ class API_Manager {
             'headers'       => array(),
             'timeout'       => 90,
             'user-agent'    => 'WPBay-HTTP-Client/1.0',
-            'sslverify'     => false,
+            'sslverify'     => true,
             'redirection'   => 5
         );
         $args = array_merge($defaults, $args);
@@ -142,7 +142,7 @@ class API_Manager {
             'headers'       => array(),
             'timeout'       => 90,
             'user-agent'    => 'WPBay-HTTP-Client/1.0',
-            'sslverify'     => false,
+            'sslverify'     => true,
             'redirection'   => 5
         );
         $args = wp_parse_args($args, $defaults);

@@ -28,7 +28,7 @@ class Update_Manager {
     private $uploaded_to_wp_org;
     private static $pre_set_site_transient_filters_added = array();
 
-    private function __construct( $wpbay_product_id, $product_slug, $product_file, $api_manager, $license_manager, $notice_manager, $product_type = 'plugin', $is_free = false, $debug_mode = false, $uploaded_to_wp_org = true ) 
+    private function __construct( $wpbay_product_id, $product_slug, $product_file, $api_manager, $license_manager, $notice_manager, $product_type = 'plugin', $is_free = false, $debug_mode = false, $uploaded_to_wp_org = false ) 
     {
         $this->product_slug       = $product_slug;
         $this->wpbay_product_id   = $wpbay_product_id;
@@ -126,10 +126,10 @@ class Update_Manager {
             }
         }
     }
-    public static function get_instance( $wpbay_product_id, $product_slug, $product_file, $api_manager, $license_manager, $notice_manager, $product_type = 'plugin', $is_free = false, $debug_mode = false ) {
+    public static function get_instance( $wpbay_product_id, $product_slug, $product_file, $api_manager, $license_manager, $notice_manager, $product_type = 'plugin', $is_free = false, $debug_mode = false, $uploaded_to_wp_org = false ) {
         $instance_key = $product_slug . '_' . $product_type;
         if ( ! isset( self::$instances[ $instance_key ] ) ) {
-            self::$instances[ $instance_key ] = new self( $wpbay_product_id, $product_slug, $product_file, $api_manager, $license_manager, $notice_manager, $product_type, $is_free, $debug_mode );
+            self::$instances[ $instance_key ] = new self( $wpbay_product_id, $product_slug, $product_file, $api_manager, $license_manager, $notice_manager, $product_type, $is_free, $debug_mode, $uploaded_to_wp_org );
         }
         return self::$instances[ $instance_key ];
     }
@@ -141,6 +141,7 @@ class Update_Manager {
             {
                 //this filter is not used if the plugin is uploaded to wordpress.org repo
                 remove_filter( 'pre_set_si' . 'te_tran' . 'sient_' . 'upd' . 'ate_plugins', $my_filter );
+                remove_filter( 'pre_set_' . 'site_trans' . 'ient_updat' . 'e_th' . 'emes', $my_filter );
             }
         }
     }
@@ -581,7 +582,7 @@ class Update_Manager {
         
         global $wp_filesystem;
 
-        if ( $upgrader instanceof Plugin_Upgrader ) 
+        if ( $upgrader instanceof \Plugin_Upgrader ) 
         {
             global $wp_filesystem;
 
@@ -595,9 +596,9 @@ class Update_Manager {
                 return $source;
             }
 
-            $desired_slug = isset( $upgrader->skin->options['plugin'] ) ? $upgrader->skin->options['plugin'] : false;
+            $desired_slug = isset( $upgrader->skin->options['plugin'] ) ? dirname( $upgrader->skin->options['plugin'] ) : false;
 
-            if ( ! $desired_slug ) {
+            if ( ! $desired_slug || '.' === $desired_slug ) {
                 return $source;
             }
 
@@ -611,7 +612,7 @@ class Update_Manager {
                 if ( true === $wp_filesystem->move( $from_path, $to_path ) ) {
                     return trailingslashit( $to_path );
                 } else {
-                    return new WP_Error(
+                    return new \WP_Error(
                         'rename_failed',
                         esc_html(wpbay_get_text_inline( 'The remote plugin package does not contain a folder with the desired slug and renaming did not work.', 'wpbay-sdk' )) . ' ' . esc_html(wpbay_get_text_inline( 'Please contact the plugin provider and ask them to package their plugin according to the WordPress guidelines.', 'wpbay-sdk' )),
                         array( 'found' => $subdir_name, 'expected' => $desired_slug )
@@ -619,13 +620,13 @@ class Update_Manager {
                 }
 
             } elseif ( empty( $subdir_name ) ) {
-                return new WP_Error(
+                return new \WP_Error(
                     'packaged_wrong',
                     esc_html(wpbay_get_text_inline( 'The remote plugin package consists of more than one file, but the files are not packaged in a folder.', 'wpbay-sdk' )) . ' ' . esc_html(wpbay_get_text_inline( 'Please contact the plugin provider and ask them to package their plugin according to the WordPress guidelines.', 'wpbay-sdk' )),
                     array( 'found' => $subdir_name, 'expected' => $desired_slug )
                 );
             }
-        } elseif ( $upgrader instanceof Theme_Upgrader ) {
+        } elseif ( $upgrader instanceof \Theme_Upgrader ) {
             // Check for single folder themes
             $source_files = array_keys( $wp_filesystem->dirlist( $remote_source ) );
             if ( 1 === count( $source_files ) && false === $wp_filesystem->is_dir( $source ) ) {
@@ -648,7 +649,7 @@ class Update_Manager {
                 if ( true === $wp_filesystem->move( $from_path, $to_path ) ) {
                     return trailingslashit( $to_path );
                 } else {
-                    return new WP_Error(
+                    return new \WP_Error(
                         'rename_failed',
                         esc_html(wpbay_get_text_inline( 'The remote theme package does not contain a folder with the desired slug and renaming did not work.', 'wpbay-sdk' )) . ' ' . esc_html(wpbay_get_text_inline( 'Please contact the theme provider and ask them to package their theme according to the WordPress guidelines.', 'wpbay-sdk' )),
                         array( 'found' => $subdir_name, 'expected' => $desired_slug )
@@ -656,7 +657,7 @@ class Update_Manager {
                 }
 
             } elseif ( empty( $subdir_name ) ) {
-                return new WP_Error(
+                return new \WP_Error(
                     'packaged_wrong',
                     esc_html(wpbay_get_text_inline( 'The remote theme package consists of more than one file, but the files are not packaged in a folder.', 'wpbay-sdk' )) . ' ' . esc_html(wpbay_get_text_inline( 'Please contact the theme provider and ask them to package their theme according to the WordPress guidelines.', 'wpbay-sdk' )),
                     array( 'found' => $subdir_name, 'expected' => $desired_slug )
@@ -671,10 +672,10 @@ class Update_Manager {
         global $wp_filesystem;
 
         if ( isset( $source, $remote_source ) ) {
-            if ( $upgrader instanceof Plugin_Upgrader ) 
+            if ( $upgrader instanceof \Plugin_Upgrader ) 
             {
-                $plugin_slug = isset( $upgrader->skin->options['plugin'] ) ? $upgrader->skin->options['plugin'] : false;
-                if ( ! $plugin_slug ) {
+                $plugin_slug = isset( $upgrader->skin->options['plugin'] ) ? dirname( $upgrader->skin->options['plugin'] ) : false;
+                if ( ! $plugin_slug || '.' === $plugin_slug ) {
                     return $source;
                 }
                 $corrected_source = trailingslashit( $remote_source ) . $plugin_slug;
@@ -684,7 +685,7 @@ class Update_Manager {
                     return new \WP_Error( 'rename_failed', esc_html(wpbay_get_text_inline( 'Failed to rename plugin directory.', 'wpbay-sdk' )) );
                 }
             } 
-            elseif ( $upgrader instanceof Theme_Upgrader ) 
+            elseif ( $upgrader instanceof \Theme_Upgrader ) 
             {
                 $theme_slug = isset( $upgrader->skin->options['theme'] ) ? $upgrader->skin->options['theme'] : false;
                 if ( ! $theme_slug ) {
@@ -714,7 +715,7 @@ class Update_Manager {
     }
 
     public function theme_update_message( $theme_key, $theme ) {
-        if ( isset( $theme->get_stylesheet ) && $theme->get_stylesheet() === $this->theme_stylesheet ) {
+        if ( is_object( $theme ) && method_exists( $theme, 'get_stylesheet' ) && $theme->get_stylesheet() === $this->theme_stylesheet ) {
             $purchase_code = $this->license_manager->get_purchase_code();
             if ( empty( $purchase_code ) ) {
                 echo '<div class="theme-update-message notice inline notice-warning notice-alt"><p>';

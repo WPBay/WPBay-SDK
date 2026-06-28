@@ -33,6 +33,10 @@ class License_Manager
     {
         $this->product_slug = $product_slug;
         $product_info = $this->get_product_info();
+        if ( ! is_array( $product_info ) )
+        {
+            $product_info = array();
+        }
         if(isset($product_info['purchase_code']))
         {
             $pc = wpbay_sdk_simple_decrypt($product_info['purchase_code']);
@@ -40,10 +44,6 @@ class License_Manager
             {
                 $this->purchase_code = $pc;
             }
-        }
-        if(isset($product_info['plan_type']))
-        {
-            $this->plan_type = $product_info['plan_type'];
         }
         if(isset($product_info['activation_time']))
         {
@@ -63,6 +63,7 @@ class License_Manager
         $this->api_manager = $api_manager;
         $this->debug_mode = $debug_mode;
         $this->product_name = $product_name;
+        $this->plan_type = $this->get_stored_plan_type();
         //license check once per day?
         add_action( 'wpbay_sdk_license_check_event_' . $this->product_slug, array( $this, 'check_license_status' ) );
     }
@@ -141,14 +142,113 @@ class License_Manager
             return;
         }
         $result = json_decode( $response_body, true );
-        if ( isset( $result['success'] ) && $result['success'] === true ) 
+        if ( $this->is_successful_license_response( $result ) ) 
         {
+            $this->maybe_update_plan_type_from_response( $result );
             set_transient( $this->license_status_option, 'valid', DAY_IN_SECONDS );
         } 
         else 
         {
             set_transient( $this->license_status_option, 'invalid', DAY_IN_SECONDS );
         }
+    }
+    private function is_successful_license_response( $result )
+    {
+        if ( ! is_array( $result ) ) {
+            return false;
+        }
+
+        if ( isset( $result['success'] ) && true === $result['success'] ) {
+            return true;
+        }
+
+        if ( isset( $result['valid'] ) && true === $result['valid'] ) {
+            return true;
+        }
+
+        if ( isset( $result['product_id'] ) && is_numeric( $result['product_id'] ) ) {
+            if ( ! empty( $this->wpbay_product_id ) && (int) $result['product_id'] !== (int) $this->wpbay_product_id ) {
+                return false;
+            }
+
+            if ( isset( $result['order_status'] ) && in_array( $result['order_status'], array( 'refunded', 'cancelled', 'failed' ), true ) ) {
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+    private function normalize_plan_type( $plan_type )
+    {
+        if ( ! is_scalar( $plan_type ) )
+        {
+            return 'wpbay';
+        }
+
+        $plan_type = sanitize_key( (string) $plan_type );
+        if ( empty( $plan_type ) )
+        {
+            return 'wpbay';
+        }
+
+        return $plan_type;
+    }
+    private function get_stored_plan_type()
+    {
+        if ( empty( $this->purchase_code ) )
+        {
+            return '';
+        }
+
+        $product_info = get_site_option( $this->option_name . $this->product_slug, array() );
+        if ( is_array( $product_info ) && isset( $product_info['plan_type'] ) && $product_info['plan_type'] !== '' )
+        {
+            return $this->normalize_plan_type( $product_info['plan_type'] );
+        }
+
+        return 'wpbay';
+    }
+    private function maybe_update_plan_type_from_response( $result )
+    {
+        if ( empty( $this->purchase_code ) || ! is_array( $result ) || ! isset( $result['plan_type'] ) )
+        {
+            return;
+        }
+
+        $plan_type = $this->normalize_plan_type( $result['plan_type'] );
+        $product_info = get_site_option( $this->option_name . $this->product_slug, array() );
+        if ( ! is_array( $product_info ) || empty( $product_info['purchase_code'] ) )
+        {
+            return;
+        }
+
+        $stored_plan_type = '';
+        if ( isset( $product_info['plan_type'] ) && $product_info['plan_type'] !== '' )
+        {
+            $stored_plan_type = $this->normalize_plan_type( $product_info['plan_type'] );
+        }
+        if ( $plan_type === $this->plan_type && $stored_plan_type === $plan_type )
+        {
+            return;
+        }
+
+        $product_info['plan_type'] = $plan_type;
+        update_site_option( $this->option_name . $this->product_slug, $product_info );
+        $this->plan_type = $plan_type;
+    }
+    private function get_api_error_message( $result, $fallback )
+    {
+        if ( is_array( $result ) && isset( $result['message'] ) && is_string( $result['message'] ) && $result['message'] !== '' ) {
+            return $result['message'];
+        }
+
+        if ( is_array( $result ) && isset( $result['code'] ) && is_string( $result['code'] ) && $result['code'] !== '' ) {
+            return 'WPBay API error: ' . $result['code'];
+        }
+
+        return $fallback;
     }
     private function is_user_admin() 
     {
@@ -269,8 +369,12 @@ echo '</td></tr></table>';
 
     public function is_plan($plan_name) 
     {
-        $get_plan_type = $this->plan_type;
-        if(!empty($get_plan_type) && $get_plan_type === $plan_name)
+        if ( empty( $this->purchase_code ) || empty( $plan_name ) )
+        {
+            return false;
+        }
+        $get_plan_type = $this->get_plan_type();
+        if(!empty($get_plan_type) && $get_plan_type === $this->normalize_plan_type($plan_name))
         {
             return true;
         }
@@ -297,10 +401,14 @@ echo '</td></tr></table>';
             $wpbay_sdk_result['message'] = 'Incorrect request sent';
             wp_send_json($wpbay_sdk_result);
         }
-        $product_slug = '';
+        $product_slug = $this->product_slug;
         if(isset($_POST['wpbay_slug']))
         {
-            $product_slug = sanitize_text_field(wp_unslash( $_POST['wpbay_slug'] ));
+            $posted_product_slug = sanitize_text_field(wp_unslash( $_POST['wpbay_slug'] ));
+            if ( $posted_product_slug !== $this->product_slug ) {
+                $wpbay_sdk_result['message'] = 'Invalid product slug.';
+                wp_send_json($wpbay_sdk_result);
+            }
         }
         if($_POST['wpbay_sdk_action'] == 'register')
         {
@@ -409,12 +517,12 @@ echo '</td></tr></table>';
     }
     public function get_plan_type() 
     {
-        $product_info = get_site_option( $this->option_name . $this->product_slug, array() );
-        if(is_array($product_info) && isset($product_info['plan_type']))
+        if ( empty( $this->purchase_code ) )
         {
-            $product_info['plan_type'];
+            return '';
         }
-        return '';
+        $this->plan_type = $this->get_stored_plan_type();
+        return $this->plan_type;
     }
     public function get_purchase_code() 
     {
@@ -455,13 +563,21 @@ echo '</td></tr></table>';
         {
             return false;
         }
+        $plan_type = $this->normalize_plan_type($plan_type);
         $product_info = array('purchase_code' => $pc, 'plan_type' => $plan_type, 'activation_time' => time());
         update_site_option( $this->option_name . $product_slug, $product_info );
+        $this->purchase_code = $purchase_code;
+        $this->plan_type = $plan_type;
+        set_transient( $this->license_status_option, 'valid', DAY_IN_SECONDS );
+        return true;
     }
 
     private function remove_purchase_code($product_slug) 
     {
         delete_site_option( $this->option_name . $product_slug );
+        delete_transient( $this->license_status_option );
+        $this->purchase_code = '';
+        $this->plan_type = '';
     }
 
     private function register_purchase_code( $purchase_code, $product_slug ) 
@@ -510,8 +626,9 @@ echo '</td></tr></table>';
         }
         $result = json_decode( $response_body, true );
 
-        if ( isset( $result['success'] ) && isset( $result['plan_type'] ) && !empty( $result['plan_type'] ) && $result['success'] === true ) {
-            $registration_status = $this->set_purchase_code( $purchase_code, $result['plan_type'], $product_slug );
+        if ( isset( $result['success'] ) && $result['success'] === true ) {
+            $plan_type = isset( $result['plan_type'] ) ? $result['plan_type'] : 'wpbay';
+            $registration_status = $this->set_purchase_code( $purchase_code, $plan_type, $product_slug );
             if($registration_status === false)
             {
                 $wpbay_sdk_result['message'] = 'Failed to register the purchase code on your server.';
@@ -520,7 +637,7 @@ echo '</td></tr></table>';
             else
             {
                 $wpbay_sdk_result['message'] = 'License activated successfully.';
-                $wpbay_sdk_result['plan_type'] = $result['plan_type'];
+                $wpbay_sdk_result['plan_type'] = $this->normalize_plan_type($plan_type);
                 $wpbay_sdk_result['status'] = 'success';
                 return $wpbay_sdk_result;
             }
@@ -597,7 +714,7 @@ echo '</td></tr></table>';
             }
             else
             {
-                $wpbay_sdk_result['message'] = $result['message'];
+                $wpbay_sdk_result['message'] = $this->get_api_error_message( $result, 'License could not be revoked.' );
                 return $wpbay_sdk_result;
             }
         }
@@ -647,8 +764,11 @@ echo '</td></tr></table>';
             return $wpbay_sdk_result;
         }
         $result        = json_decode( $response_body, true );
-        if (( isset( $result['success'] ) && $result['success'] === true ) || (isset( $result['order_status'] ) && $result['order_status'] === 'completed' && isset( $result['product_id'] ) && is_numeric($result['product_id']))) 
+        if ( $this->is_successful_license_response( $result ) ) 
         {
+            if ( $purchase_code === $this->purchase_code ) {
+                $this->maybe_update_plan_type_from_response( $result );
+            }
             set_transient( $this->license_status_option, 'valid', DAY_IN_SECONDS );
             $wpbay_sdk_result['message'] = 'valid';
             $wpbay_sdk_result['status'] = 'success';
@@ -657,7 +777,7 @@ echo '</td></tr></table>';
         else 
         {
             set_transient( $this->license_status_option, 'invalid', DAY_IN_SECONDS );
-            $wpbay_sdk_result['message'] = $result['message'];
+            $wpbay_sdk_result['message'] = $this->get_api_error_message( $result, 'License could not be validated.' );
             return $wpbay_sdk_result;
         }
     }
@@ -713,11 +833,11 @@ echo '</td></tr></table>';
         }
         $result        = json_decode( $response_body, true );
         if ( isset( $result['success'] ) && $result['success'] === true ) {
-            $wpbay_sdk_result['message'] = $result['message'];
+            $wpbay_sdk_result['message'] = $this->get_api_error_message( $result, 'Purchase code is registered.' );
             $wpbay_sdk_result['status'] = 'success';
             return $wpbay_sdk_result;
         } else {
-            $wpbay_sdk_result['message'] = $result['message'];
+            $wpbay_sdk_result['message'] = $this->get_api_error_message( $result, 'Purchase code is not registered.' );
             return $wpbay_sdk_result;
         }
     }
@@ -753,7 +873,8 @@ echo '</td></tr></table>';
         $response_body = wpbay_sdk_remote_retrieve_body( $response );
         $result        = json_decode( $response_body, true );
 
-        if ( isset( $result['valid'] ) && $result['valid'] ) {
+        if ( $this->is_successful_license_response( $result ) ) {
+            $this->maybe_update_plan_type_from_response( $result );
             return true;
         } else {
             return false;

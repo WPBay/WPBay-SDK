@@ -26,6 +26,7 @@ class Feedback_Manager
         $this->license_manager    = $license_manager;
         $this->product_file       = $product_file;
         $this->debug_mode         = $debug_mode;
+        $this->wpbay_product_id   = $wpbay_product_id;
         $this->product_basename   = plugin_basename($this->product_file);
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
         add_action( 'wp_ajax_wpbay_sdk_submit_feedback', array( $this, 'handle_feedback_submission' ) );
@@ -146,6 +147,9 @@ class Feedback_Manager
 
         if ( empty( $reason ) || empty( $product_slug ) || empty( $product_id ) ) {
             wp_send_json_error( array( 'message' => esc_html(wpbay_get_text_inline( 'Invalid feedback data.', 'wpbay-sdk' )) ) );
+        }
+        if ( $product_slug !== $this->product_slug || (int) $product_id !== (int) $this->wpbay_product_id ) {
+            wp_send_json_error( array( 'message' => esc_html(wpbay_get_text_inline( 'Invalid feedback data provided.', 'wpbay-sdk' )) ) );
         }
 
         $purchase_code = $this->license_manager->get_purchase_code();
