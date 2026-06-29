@@ -140,8 +140,11 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
             $this->init_hooks();
             if (!wpbay_sdk_is_ajax()) 
             {
-                add_action(( is_multisite() && wpbay_sdk_is_network_admin() ? 'network_' : '' ) . 'admin_menu', array( $this, 'admin_menu_init' ), WPBAY_LOWEST_PRIORITY);
-                add_action( 'admin_init', array( &$this, 'add_license_activation' ) );
+                $menu_hook = ( is_multisite() && wpbay_sdk_is_network_admin() ? 'network_' : '' ) . 'admin_menu';
+                add_action( $menu_hook, array( $this, 'admin_menu_init' ), WPBAY_LOWEST_PRIORITY);
+                // Must run after admin_menu_init() has computed the activation URL,
+                // otherwise the plugin action link is registered while the URL is still '#'.
+                add_action( $menu_hook, array( &$this, 'add_license_activation' ), WPBAY_LOWEST_PRIORITY + 1 );
                 add_action( 'admin_init', array( &$this, 'hook_action_links' ), WPBAY_LOWEST_PRIORITY );
             }
         }
@@ -278,7 +281,12 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
                     $product_settings_name = 'Plugin Settings';;
                 }
             }
-            if($this->product_has_menu() === false)
+            // Discover the real placement of the product's menu (top-level or
+            // submenu of any parent type) so we override the existing page
+            // instead of creating a duplicate.
+            $menu_exists = $this->resolve_menu_placement();
+
+            if($this->product_has_menu() === false && ! $menu_exists)
             {
                 $hook = wpbay_sdk_add_page_submenu(
                     '',
@@ -304,24 +312,19 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
                         array( &$this, 'wpbay_sdk_activation_page_render' )
                     );
                 }
-                $this->activation_url = admin_url('admin.php?page=' . $this->menu_slug);
+                $this->activation_url = $this->build_menu_page_url();
             }
             else
             {
-                $menus = array( $this->menu_parent_slug );
-                foreach ( $menus as $parent_slug ) 
-                {
-                    $hook = $this->override_submenu_action(
-                        $parent_slug,
-                        $this->menu_slug,
-                        array( &$this, 'wpbay_sdk_activation_page_render' )
-                    );
+                $hook = $this->override_submenu_action(
+                    $this->menu_parent_slug,
+                    $this->menu_slug,
+                    array( &$this, 'wpbay_sdk_activation_page_render' )
+                );
 
-                    if ( false !== $hook ) 
-                    {
-                        $this->activation_url = admin_url($this->menu_parent_slug . '?page=' . $this->menu_slug);
-                        break;
-                    }
+                if ( false !== $hook ) 
+                {
+                    $this->activation_url = $this->build_menu_page_url();
                 }
             }
         }
@@ -589,7 +592,12 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
                 return;
             }
 
-            if ($this->product_has_submenu() || $this->product_is_submenu()) 
+            // Detect an existing menu (registered by the host product) of any
+            // type so the SDK attaches its submenus to it instead of creating a
+            // placeholder "main settings" page.
+            $menu_exists = $this->resolve_menu_placement();
+
+            if ($menu_exists || $this->product_has_submenu() || $this->product_is_submenu()) 
             {
                 $parent_slug = $this->menu_slug;
             } 
@@ -626,7 +634,8 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
             {
                 return;
             }
-            if ($this->product_has_network_menu() || $this->product_is_submenu()) {
+            $menu_exists = $this->resolve_menu_placement();
+            if ($menu_exists || $this->product_has_network_menu() || $this->product_is_submenu()) {
                 $parent_slug = $this->menu_slug;
             } else {
                 wpbay_sdk_add_page_menu(
@@ -653,6 +662,102 @@ if (!class_exists('WPBaySDK\Menu_Manager')) {
                 return true;
             }
             return false;
+        }
+
+        /**
+         * Detect, from WordPress' registered admin menus, where the product's
+         * menu_slug actually lives (top-level or submenu, and under which parent).
+         *
+         * This allows the SDK to attach to and override an existing menu of any
+         * type, regardless of whether the host plugin declared a 'parent' in
+         * menu_data. Ground truth from WordPress always wins over configuration.
+         *
+         * @return bool True if the menu was found in WordPress, false otherwise.
+         */
+        private function resolve_menu_placement()
+        {
+            if ( empty( $this->menu_slug ) )
+            {
+                return false;
+            }
+            global $_parent_pages, $menu, $submenu;
+
+            // Preferred source: WordPress' parent-page map, populated by
+            // add_menu_page()/add_submenu_page() for every registered page.
+            if ( isset( $_parent_pages ) && is_array( $_parent_pages ) && array_key_exists( $this->menu_slug, $_parent_pages ) )
+            {
+                $parent = $_parent_pages[ $this->menu_slug ];
+                if ( empty( $parent ) )
+                {
+                    $this->is_top_level     = true;
+                    $this->menu_parent_slug = null;
+                }
+                else
+                {
+                    $this->is_top_level     = false;
+                    $this->menu_parent_slug = $parent;
+                }
+                return true;
+            }
+
+            // Fallback: scan the global menu/submenu arrays directly.
+            if ( is_array( $menu ) )
+            {
+                foreach ( $menu as $menu_item )
+                {
+                    if ( isset( $menu_item[2] ) && $menu_item[2] === $this->menu_slug )
+                    {
+                        $this->is_top_level     = true;
+                        $this->menu_parent_slug = null;
+                        return true;
+                    }
+                }
+            }
+            if ( is_array( $submenu ) )
+            {
+                foreach ( $submenu as $parent_slug => $submenu_items )
+                {
+                    if ( ! is_array( $submenu_items ) )
+                    {
+                        continue;
+                    }
+                    foreach ( $submenu_items as $submenu_item )
+                    {
+                        if ( isset( $submenu_item[2] ) && $submenu_item[2] === $this->menu_slug )
+                        {
+                            $this->is_top_level     = false;
+                            $this->menu_parent_slug = $parent_slug;
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Build the correct admin URL for the product's menu_slug, supporting any
+         * parent type (custom top-level, admin.php, edit.php?post_type=..., or a
+         * core page such as options-general.php).
+         *
+         * @return string
+         */
+        private function build_menu_page_url()
+        {
+            if ( function_exists( 'menu_page_url' ) )
+            {
+                $url = menu_page_url( $this->menu_slug, false );
+                if ( ! empty( $url ) )
+                {
+                    return $url;
+                }
+            }
+            if ( ! empty( $this->menu_parent_slug ) && strpos( $this->menu_parent_slug, '.php' ) !== false )
+            {
+                $separator = ( strpos( $this->menu_parent_slug, '?' ) !== false ) ? '&' : '?';
+                return admin_url( $this->menu_parent_slug . $separator . 'page=' . $this->menu_slug );
+            }
+            return admin_url( 'admin.php?page=' . $this->menu_slug );
         }
 
         private function product_has_submenu()
