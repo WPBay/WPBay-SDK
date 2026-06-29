@@ -101,7 +101,9 @@ class API_Manager {
                 if ($this->debug_mode === true) {
                     wpbay_log_to_file('Failed to execute wp_remote_post in API request: ' . $error_message);
                 }
-                sleep($this->retry_delay);
+                if ( ( $attempt + 1 ) < $this->retry_count ) {
+                    sleep($this->retry_delay);
+                }
             } else {
                 $response_code = wp_remote_retrieve_response_code($response);
                 $response_body = wp_remote_retrieve_body($response);
@@ -186,7 +188,9 @@ class API_Manager {
                 if ($this->debug_mode === true) {
                     wpbay_log_to_file('Failed to execute wp_remote_get in API request: ' . $error_message);
                 }
-                sleep($this->retry_delay);
+                if ( ( $attempt + 1 ) < $this->retry_count ) {
+                    sleep($this->retry_delay);
+                }
             } else {
                 $response_code = wp_remote_retrieve_response_code($response);
                 $response_body = wp_remote_retrieve_body($response);

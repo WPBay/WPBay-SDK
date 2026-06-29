@@ -42,11 +42,13 @@ jQuery(document).ready(function($)
         {
             wpbayRmLoading(clicked);
             alert('You must enter a purchase code!');
+            return;
         }
         if(wpbay_sdk_security == '')
         {
             wpbayRmLoading(clicked);
             alert('Incorrect backend call.');
+            return;
         }
         $.post(wpbay_sdk_ajax.ajax_url, {
             action: 'wpbay_sdk_purchase_code_actions' + wpbay_slug.wpbayToSlug(),
@@ -87,11 +89,13 @@ jQuery(document).ready(function($)
         {
             wpbayRmLoading(clicked);
             alert('You must enter a purchase code!');
+            return;
         }
         if(wpbay_sdk_security == '')
         {
             wpbayRmLoading(clicked);
             alert('Incorrect backend call.');
+            return;
         }
         $.post(wpbay_sdk_ajax.ajax_url, {
             action: 'wpbay_sdk_purchase_code_actions' + wpbay_slug.wpbayToSlug(),
@@ -132,11 +136,13 @@ jQuery(document).ready(function($)
         {
             wpbayRmLoading(clicked);
             alert('You must enter a purchase code!');
+            return;
         }
         if(wpbay_sdk_security == '')
         {
             wpbayRmLoading(clicked);
             alert('Incorrect backend call.');
+            return;
         }
         $.post(wpbay_sdk_ajax.ajax_url, {
             action: 'wpbay_sdk_purchase_code_actions' + wpbay_slug.wpbayToSlug(),
@@ -174,11 +180,13 @@ jQuery(document).ready(function($)
         {
             wpbayRmLoading(clicked);
             alert('You must enter a purchase code!');
+            return;
         }
         if(wpbay_sdk_security == '')
         {
             wpbayRmLoading(clicked);
             alert('Incorrect backend call.');
+            return;
         }
         $.post(wpbay_sdk_ajax.ajax_url, {
             action: 'wpbay_sdk_purchase_code_actions' + wpbay_slug.wpbayToSlug(),

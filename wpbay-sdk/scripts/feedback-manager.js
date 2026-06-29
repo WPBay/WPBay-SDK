@@ -105,7 +105,7 @@ jQuery(document).ready(function($) {
                             }
 
                             var postData = {
-                                action: 'wpbay_sdk_submit_feedback',
+                                action: data.ajax_action,
                                 reason: selectedReason,
                                 details: details,
                                 product_slug: data.product_slug,

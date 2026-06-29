@@ -29,7 +29,7 @@ class Feedback_Manager
         $this->wpbay_product_id   = $wpbay_product_id;
         $this->product_basename   = plugin_basename($this->product_file);
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
-        add_action( 'wp_ajax_wpbay_sdk_submit_feedback', array( $this, 'handle_feedback_submission' ) );
+        add_action( 'wp_ajax_wpbay_sdk_submit_feedback_' . sanitize_title( $this->product_slug ), array( $this, 'handle_feedback_submission' ) );
     }
 
     public static function get_instance( $product_slug, $api_manager, $license_manager, $product_file, $wpbay_product_id, $debug_mode ) 
@@ -77,6 +77,7 @@ class Feedback_Manager
         {
             self::$feedback_manager_data[$this->product_slug] = array(
                 'ajax_url'      => admin_url( 'admin-ajax.php' ),
+                'ajax_action'   => 'wpbay_sdk_submit_feedback_' . sanitize_title( $this->product_slug ),
                 'nonce'         => wp_create_nonce( 'wpbay_sdk_submit_feedback_nonce' ),
                 'product_slug'  => $this->product_slug,
                 'reasons'       => $this->get_feedback_reasons(),
@@ -93,6 +94,7 @@ class Feedback_Manager
         {
             self::$feedback_manager_data[$this->product_basename] = array(
                 'ajax_url'      => admin_url( 'admin-ajax.php' ),
+                'ajax_action'   => 'wpbay_sdk_submit_feedback_' . sanitize_title( $this->product_slug ),
                 'nonce'         => wp_create_nonce( 'wpbay_sdk_submit_feedback_nonce' ),
                 'product_slug'  => $this->product_slug,
                 'reasons'       => $this->get_feedback_reasons(),

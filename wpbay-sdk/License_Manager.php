@@ -24,7 +24,7 @@ class License_Manager
     private $developer_mode = '0';
     private $secret_key     = '';
     private $this_sdk_version = '0.0.0';
-    private $notice_manager = false;
+    private $notice_manager = null;
     private $license_status_option;
     private $api_manager;
     private $debug_mode;
@@ -132,13 +132,16 @@ class License_Manager
             {
                 wpbay_log_to_file('Failed to get license status!');
             }
-            set_transient( $this->license_status_option, 'invalid', DAY_IN_SECONDS );
+            // Temporary connectivity failure: do not mark a license invalid.
+            // Retry sooner than the daily cron instead of caching a false negative.
+            set_transient( $this->license_status_option, 'unknown', HOUR_IN_SECONDS );
             return;
         }
         $response_body = wpbay_sdk_remote_retrieve_body( $response );
         if ( empty( $response_body ) ) 
         {
-            set_transient( $this->license_status_option, 'invalid', DAY_IN_SECONDS );
+            // Empty/unreadable response is not a definitive answer; keep retrying.
+            set_transient( $this->license_status_option, 'unknown', HOUR_IN_SECONDS );
             return;
         }
         $result = json_decode( $response_body, true );
@@ -323,7 +326,7 @@ class License_Manager
             );
             register_setting( 'wpbay_sdk_settings', $this->option_name . $this->product_slug,
             array(
-                'sanitize_callback' => 'sanitize_text_field'
+                'sanitize_callback' => array( $this, 'sanitize_license_data' )
             ) );
             
             $wpbay_sdk_added_settings_sections[] = $section_id;
@@ -365,6 +368,44 @@ echo '</td></tr></table>';
             echo '</form>';
             echo '</div>';
         }
+    }
+
+    public function sanitize_license_data( $value )
+    {
+        // The license data is managed exclusively through AJAX (register/revoke).
+        // When the Settings API form is submitted without our value (e.g. the
+        // admin presses Enter in the purchase code field), WordPress passes null
+        // here. Preserve the stored data instead of wiping the active license.
+        if ( null === $value || '' === $value )
+        {
+            return get_site_option( $this->option_name . $this->product_slug, array() );
+        }
+        // The license option is stored as an array. The default WordPress
+        // settings sanitization (sanitize_text_field) would flatten an array
+        // to an empty string, which on single-site installs corrupts the data
+        // saved through update_site_option() (it delegates to update_option()).
+        if ( ! is_array( $value ) )
+        {
+            return array();
+        }
+        $sanitized = array();
+        if ( isset( $value['purchase_code'] ) )
+        {
+            $sanitized['purchase_code'] = sanitize_text_field( $value['purchase_code'] );
+        }
+        if ( isset( $value['plan_type'] ) )
+        {
+            $sanitized['plan_type'] = $this->normalize_plan_type( $value['plan_type'] );
+        }
+        if ( isset( $value['activation_time'] ) )
+        {
+            $sanitized['activation_time'] = absint( $value['activation_time'] );
+        }
+        if ( isset( $value['rating_shown'] ) )
+        {
+            $sanitized['rating_shown'] = (bool) $value['rating_shown'];
+        }
+        return $sanitized;
     }
 
     public function is_plan($plan_name) 
@@ -751,7 +792,8 @@ echo '</td></tr></table>';
             {
                 wpbay_log_to_file('Error in purchase code checking!');
             }
-            set_transient( $this->license_status_option, 'invalid', DAY_IN_SECONDS );
+            // Temporary connectivity failure: do not mark a license invalid.
+            set_transient( $this->license_status_option, 'unknown', HOUR_IN_SECONDS );
             $wpbay_sdk_result['message'] = 'Unable to connect to the WPBay server. Please try again.';
             return $wpbay_sdk_result;
         }
@@ -759,8 +801,8 @@ echo '</td></tr></table>';
         $response_body = wpbay_sdk_remote_retrieve_body( $response );
         if(empty($response_body))
         {
-            set_transient( $this->license_status_option, 'invalid', DAY_IN_SECONDS );
-            $wpbay_sdk_result['message'] = 'An error occurred during license revoking.';
+            set_transient( $this->license_status_option, 'unknown', HOUR_IN_SECONDS );
+            $wpbay_sdk_result['message'] = 'An error occurred during license validation.';
             return $wpbay_sdk_result;
         }
         $result        = json_decode( $response_body, true );
@@ -828,12 +870,12 @@ echo '</td></tr></table>';
         $response_body = wpbay_sdk_remote_retrieve_body( $response );
         if(empty($response_body))
         {
-            $wpbay_sdk_result['message'] = 'An error occurred during license revoking.';
+            $wpbay_sdk_result['message'] = 'An error occurred while checking the purchase code registration.';
             return $wpbay_sdk_result;
         }
         $result        = json_decode( $response_body, true );
         if ( isset( $result['success'] ) && $result['success'] === true ) {
-            $wpbay_sdk_result['message'] = $this->get_api_error_message( $result, 'Purchase code is registered.' );
+            $wpbay_sdk_result['message'] = 'Purchase code is registered.';
             $wpbay_sdk_result['status'] = 'success';
             return $wpbay_sdk_result;
         } else {

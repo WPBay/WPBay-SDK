@@ -260,7 +260,7 @@ else
         wpbay_sdk_fallback_to_newest_active_sdk();
     } else {
         if ( $is_newest_sdk_plugin_active && $this_sdk_relative_path === $wpbay_sdk_active_plugins->newest->sdk_path && 
-                ( $wpbay_sdk_active_plugins->newest->in_activation || ( class_exists( 'WPBaySDK\WPBay_SDK' ) && ( ! empty($wpbay_sdk_version) || version_compare( $wpbay_sdk_version, $wpbay_sdk_version, '<' ) ) ) ) ) {
+                ( $wpbay_sdk_active_plugins->newest->in_activation || ( class_exists( 'WPBaySDK\WPBay_SDK' ) && version_compare( $wpbay_sdk_version, $wpbay_sdk_active_plugins->newest->version, '>=' ) ) ) ) {
             
             if ( $wpbay_sdk_active_plugins->newest->in_activation && ! $is_newest_sdk_type_theme ) {
                 $wpbay_sdk_active_plugins->newest->in_activation = false;
@@ -309,18 +309,21 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK_Loader' ) )
                 $product_basename = $fallback_file;
             }
             $product_slug = wpbay_sdk_extract_slug($caller_file);
-            $sdk_var = 'wpbay_sdk_' . $product_basename;
-            global $$sdk_var;
+            $sdk_var     = 'wpbay_sdk_' . $product_basename;
+            $sdk_ver_var = $sdk_var . '_version';
+            global $$sdk_var, $$sdk_ver_var;
 
-            $current_version = isset( $wpbay_sdk_version ) ? $wpbay_sdk_version : '0.0.0';
-
-            if ( version_compare( $wpbay_sdk_version, $current_version, '>' ) ) 
+            // Reset the cached instance reference if a newer SDK version is loaded
+            // after it was first created (multiple plugins may bundle the SDK).
+            $stored_version = isset( $$sdk_ver_var ) ? $$sdk_ver_var : '0.0.0';
+            if ( isset( $$sdk_var ) && version_compare( $wpbay_sdk_version, $stored_version, '>' ) ) 
             {
                 $$sdk_var = null;
             }
-            if ( ! isset( $$sdk_var ) ) 
+            if ( ! isset( $$sdk_var ) || null === $$sdk_var ) 
             {
-                $$sdk_var = WPBay_SDK::get_instance( $args, $product_slug, $wpbay_sdk_version );
+                $$sdk_var     = WPBay_SDK::get_instance( $args, $product_slug, $wpbay_sdk_version );
+                $$sdk_ver_var = $wpbay_sdk_version;
             }
             return $$sdk_var;
         }

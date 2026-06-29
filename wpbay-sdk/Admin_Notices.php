@@ -114,7 +114,7 @@ if ( ! class_exists( __NAMESPACE__ . '\Admin_Notice_Manager' ) )
             check_ajax_referer( 'wpbay_sdk_dismiss_notice' );
             if(!current_user_can( 'edit_posts' ))
             {
-                return;
+                wp_send_json_error();
             }
             $key = isset( $_POST['notice_key'] ) ? intval( $_POST['notice_key'] ) : false;
             if ( $key !== false && isset( $this->notices[ $key ] ) ) {

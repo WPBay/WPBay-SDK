@@ -273,13 +273,13 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
                     $target_timestamp = strtotime($this->rating_notice, $activation_time);
                     if($target_timestamp < time() && $this->license_manager->get_rating_shown() === false)
                     {
-                        $this->license_manager->set_rating_shown($this->product_slug);
                         $notice_content = sprintf( wp_kses( 
                             // translators: %1$s: Product slug, %2$s: Product type, %3$s: Review URL
                             wpbay_get_text_inline( 'Hey, I noticed you are using the %1$s %2$s for some time now - that\'s really awesome! Could you please do a favor and give it <b><a href=\'%3$s\' target=\'_blank\'>a 5-star rating</a></b>? Just to help us spread the word and boost our motivation. Thank you!', 'wpbay-sdk'), 
                             array(  'b' => array(), 'a' => array( 'href' => array(), 'target' => array() ) ) ), $this->product_slug, $this->product_type, esc_url_raw($this->wpbay_sdk_url . '?post_type=product&p=' . $this->wpbay_product_id . '#reviews') );
                         $notice_content = apply_filters( 'wpbay_sdk_updates_check_message', $notice_content );
                         $this->notice_manager->add_notice($notice_content, 'success');
+                        $this->license_manager->set_rating_shown($this->product_slug);
                     }
                 }
             }
@@ -494,6 +494,7 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
                 <?php settings_errors(); ?>
                 <form method="post" action="options.php">
                     <?php
+                    settings_fields('wpbay_sdk_settings');
                     do_settings_sections('wpbay-settings');
                     ?>
                 </form>
@@ -533,13 +534,36 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             ?>
             <div class="wrap">
                 <h1><?php echo esc_html(wpbay_get_text_inline('WPBay Network Settings', 'wpbay-sdk')); ?></h1>
-                <form method="post" action="edit.php?action=wpbay_sdk_network_settings">
+                <?php
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only notice flag set by our own redirect after a nonce-verified save.
+                if ( isset( $_GET['updated'] ) && 'true' === $_GET['updated'] ) {
+                    echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(wpbay_get_text_inline('Settings saved.', 'wpbay-sdk')) . '</p></div>';
+                }
+                ?>
+                <form method="post" action="<?php echo esc_url( network_admin_url( 'edit.php?action=wpbay_sdk_network_settings' ) ); ?>">
                     <?php
+                    wp_nonce_field( 'wpbay_sdk_network_settings' );
                     do_settings_sections('wpbay-network-settings');
                     ?>
                 </form>
             </div>
             <?php
+        }
+        public function save_network_settings() 
+        {
+            if ( ! current_user_can( 'manage_network_options' ) ) 
+            {
+                wp_die( esc_html(wpbay_get_text_inline('You are not allowed to perform this action.', 'wpbay-sdk')) );
+            }
+            check_admin_referer( 'wpbay_sdk_network_settings' );
+            // License and contact data are persisted via AJAX, so there are no
+            // Settings API fields to write here. Acknowledge the submission and
+            // redirect back to the network settings page.
+            wp_safe_redirect( add_query_arg(
+                array( 'page' => 'wpbay-network-settings', 'updated' => 'true' ),
+                network_admin_url( 'admin.php' )
+            ) );
+            exit;
         }
         private function check_developer_mode() 
         {
@@ -584,9 +608,15 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
         }
         private function define_constants() 
         {
+            // Legacy shared key, kept only so purchase codes encrypted by older
+            // SDK versions can still be decrypted (see wpbay_sdk_simple_decrypt).
+            if (!defined('WPBAY_PURCHASE_CODE_LEGACY_ENCRYPTION_KEY')) 
+            {
+                define('WPBAY_PURCHASE_CODE_LEGACY_ENCRYPTION_KEY', '5fXCm5mEQHtJ9ESzSeC+3j2GMEXuIEuA0rtC9U5kO2s=');
+            }
             if (!defined('WPBAY_PURCHASE_CODE_ENCRYPTION_KEY')) 
             {
-                define('WPBAY_PURCHASE_CODE_ENCRYPTION_KEY', '5fXCm5mEQHtJ9ESzSeC+3j2GMEXuIEuA0rtC9U5kO2s=');
+                define('WPBAY_PURCHASE_CODE_ENCRYPTION_KEY', wpbay_sdk_get_encryption_key());
             }
             if ( ! defined( 'WPBAY_LOWEST_PRIORITY' ) ) 
             {
@@ -634,6 +664,7 @@ if ( ! class_exists( 'WPBaySDK\WPBay_SDK' ) )
             if (is_multisite()) 
             {
                 add_action('network_admin_menu', array($this, 'network_admin_menu'));
+                add_action('network_admin_edit_wpbay_sdk_network_settings', array($this, 'save_network_settings'));
             }
 
             add_action('wp_ajax_wpbay_sdk_dismiss_notice' . sanitize_title($this->product_slug), array($this, 'dismiss_notice'));

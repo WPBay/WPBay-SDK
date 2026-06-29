@@ -78,6 +78,32 @@ if (!function_exists('wpbay_sdk_normalize_path'))
         return $path;
     }
 }
+if (!function_exists('wpbay_sdk_get_encryption_key')) 
+{
+    function wpbay_sdk_get_encryption_key() 
+    {
+        // A site-specific key is generated once and stored so that purchase codes
+        // are not encrypted with a value shared across every WPBay installation.
+        $key = get_site_option( 'wpbay_sdk_encryption_key', '' );
+        if ( empty( $key ) || ! is_string( $key ) ) 
+        {
+            if ( function_exists( 'wp_generate_password' ) ) 
+            {
+                $key = wp_generate_password( 64, true, true );
+            } 
+            elseif ( function_exists( 'random_bytes' ) ) 
+            {
+                $key = base64_encode( random_bytes( 32 ) );
+            } 
+            else 
+            {
+                $key = base64_encode( openssl_random_pseudo_bytes( 32 ) );
+            }
+            update_site_option( 'wpbay_sdk_encryption_key', $key );
+        }
+        return $key;
+    }
+}
 if (!function_exists('wpbay_sdk_simple_encrypt')) 
 {
     function wpbay_sdk_simple_encrypt( $go_encrypt ) 
@@ -136,7 +162,13 @@ if (!function_exists('wpbay_sdk_simple_decrypt'))
         }
         $iv = $decrypt_arr[0];
         $encrypted_code = $decrypt_arr[1];
-        return openssl_decrypt($encrypted_code, $cipher, $encryption_key, 0, $iv);
+        $decrypted = openssl_decrypt($encrypted_code, $cipher, $encryption_key, 0, $iv);
+        if ( $decrypted === false && defined('WPBAY_PURCHASE_CODE_LEGACY_ENCRYPTION_KEY') && WPBAY_PURCHASE_CODE_LEGACY_ENCRYPTION_KEY !== $encryption_key )
+        {
+            // Backward compatibility: data encrypted with the previously shared key.
+            $decrypted = openssl_decrypt($encrypted_code, $cipher, WPBAY_PURCHASE_CODE_LEGACY_ENCRYPTION_KEY, 0, $iv);
+        }
+        return $decrypted;
     }
 }
 if (!function_exists('wpbay_sdk_get_plugin_root_directory')) 

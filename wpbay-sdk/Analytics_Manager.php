@@ -141,6 +141,9 @@ class Analytics_Manager
                 'line'    => $line,
             ));
         }
+        // Always let WordPress/PHP continue with normal error handling so this
+        // handler never swallows errors from this or any other plugin.
+        return false;
     }
 
     public function handle_shutdown() 
@@ -155,6 +158,8 @@ class Analytics_Manager
                 ));
             }
         }
+        // Remove our custom handler so it does not linger for the rest of the request.
+        restore_error_handler();
     }
 
     public function opt_in() {
